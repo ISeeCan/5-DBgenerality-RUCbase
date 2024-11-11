@@ -27,6 +27,16 @@ bool LRUReplacer::victim(frame_id_t* frame_id) {
     // Todo:
     //  利用lru_replacer中的LRUlist_,LRUHash_实现LRU策略
     //  选择合适的frame指定为淘汰页面,赋值给*frame_id
+    if (LRUlist_.empty()) {
+        // LRU链表为空，未找到受害者
+        *frame_id = INVALID_FRAME_ID;
+        return false;
+    }
+
+    // 选择LRU链表中最远被unpin的帧作为受害者
+    *frame_id = LRUlist_.back();
+    LRUlist_.pop_back();
+    LRUhash_.erase(*frame_id);
 
     return true;
 }
@@ -40,6 +50,11 @@ void LRUReplacer::pin(frame_id_t frame_id) {
     // Todo:
     // 固定指定id的frame
     // 在数据结构中移除该frame
+    auto it = LRUhash_.find(frame_id);
+    if (it != LRUhash_.end()) { //表示找到了对应迭代器（LRUlist中位置？）
+        LRUlist_.erase(it->second);
+        LRUhash_.erase(it);
+    }
 }
 
 /**
@@ -50,6 +65,17 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
     // Todo:
     //  支持并发锁
     //  选择一个frame取消固定
+    std::scoped_lock lock{latch_};
+    // 查找要取消固定的帧是否在哈希表中
+    auto it = LRUhash_.find(frame_id);
+
+    if (it == LRUhash_.end()) {
+        // 不在表里，所以需要添加到里面
+        // 如果帧在哈希表中，表示帧当前是固定的
+        // 将帧添加回LRU链表和哈希表，表示可以成为受害者
+        LRUlist_.push_front(frame_id);
+        LRUhash_[frame_id] = LRUlist_.begin();
+    }
 }
 
 /**
