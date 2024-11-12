@@ -69,14 +69,14 @@
     public:
         BufferPoolManager(size_t pool_size, DiskManager *disk_manager);
         ~BufferPoolManager();
-        Page *new_page(PageId *page_id);
-        Page *fetch_page(PageId page_id);
-        bool unpin_page(PageId page_id, bool is_dirty);
-        bool delete_page(PageId page_id);
-        bool flush_page(PageId page_id);
-        void flush_all_pages(int fd);
+        - Page *new_page(PageId *page_id);
+        - Page *fetch_page(PageId page_id);
+        - bool unpin_page(PageId page_id, bool is_dirty);
+        - bool delete_page(PageId page_id);
+        - bool flush_page(PageId page_id);
+        - void flush_all_pages(int fd);
     private:
         // 辅助函数
-        bool find_victim_page(frame_id_t *frame_id);
-        void update_page(Page *page, PageId new_page_id, frame_id_t new_frame_id);
+        - bool find_victim_page(frame_id_t *frame_id);
+        - void update_page(Page *page, PageId new_page_id, frame_id_t new_frame_id);
     ```
