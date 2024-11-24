@@ -22,8 +22,7 @@ int IxNodeHandle::lower_bound(const char *target) const {
     // Todo:  实验二任务一
     // 查找当前节点中第一个大于等于target的key，并返回key的位置给上层
     // 提示: 可以采用多种查找方式，如顺序遍历、二分查找等；使用ix_compare()函数进行比较
-
-    IxNodeHandle *node = IxIndexHandle::find_leaf_page(target, Operation::FIND, nullptr);
+    std::pair<IxNodeHandle *, bool> nodep = IxIndexHandle::find_leaf_page(target, Operation::FIND, nullptr);
     int key_idx = node->lower_bound(key);
 
     Iid iid = {.page_no = node->GetPageNo(), .slot_no = key_idx};
@@ -179,6 +178,16 @@ std::pair<IxNodeHandle *, bool> IxIndexHandle::find_leaf_page(const char *key, O
     // 1. 获取根节点
     // 2. 从根节点开始不断向下查找目标key
     // 3. 找到包含该key值的叶子结点停止查找，并返回叶子节点
+    IxNodeHandle *root = fetch_node(this->file_hdr_->root_page_);
+	IxNodeHandle *cur = root;
+    
+	while(!cur->is_leaf_page()){ //traverse
+		IxNodeHandle *parent = cur;
+		cur = fetch_node(cur->internal_lookup(key));
+		//unpin page
+		buffer_pool_manager_->unpin_page(parent->get_page_id(), false);
+	}
+	return std::make_pair(cur,true); //get leaf node
 
     return std::make_pair(nullptr, false);
 }
@@ -427,7 +436,7 @@ Iid IxIndexHandle::leaf_begin() const {
 }
 
 /**
- * @brief 获取一个指定结点
+ * @brief 获取一个指定结点-用于获取指定页面对应的IxNodeHandle
  *
  * @param page_no
  * @return IxNodeHandle*
