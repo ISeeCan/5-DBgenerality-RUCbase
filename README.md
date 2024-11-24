@@ -1,5 +1,7 @@
 **本仓库代替原fork仓库，成为了个人的私有不公开仓库以便核验，项目完成后将取代另一仓库**
 
+部分文档可能存在更新，最新版请详见[实验发布地址](https://github.com/ruc-deke/rucbase-lab)
+
 [原readme在这里](Ori-README.md)
 
 在此简要记录我的实验过程：
@@ -173,3 +175,17 @@ cd build
 ./bin/buffer_pool_manager_test
 ./bin/record_manager_test
 ```
+
+#### 实验一
+
+##### 任务1 B+树的查找
+
+文件位置：[src/index/ix_index_handle.cpp](src/index/ix_index_handle.cpp)
+
+需要实现：
+
+int lower_bound(const char *target) const;
+用于在当前结点中查找第一个大于或等于target的key的位置。
+
+int upper_bound(const char *target) const;
+用于在当前结点中查找第一个大于target的key的位置。

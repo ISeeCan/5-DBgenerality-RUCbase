@@ -19,9 +19,18 @@ See the Mulan PSL v2 for more details. */
  * @note 返回key index（同时也是rid index），作为slot no
  */
 int IxNodeHandle::lower_bound(const char *target) const {
-    // Todo:
+    // Todo:  实验二任务一
     // 查找当前节点中第一个大于等于target的key，并返回key的位置给上层
     // 提示: 可以采用多种查找方式，如顺序遍历、二分查找等；使用ix_compare()函数进行比较
+
+    IxNodeHandle *node = IxIndexHandle::find_leaf_page(target, Operation::FIND, nullptr);
+    int key_idx = node->lower_bound(key);
+
+    Iid iid = {.page_no = node->GetPageNo(), .slot_no = key_idx};
+
+    // unpin leaf node
+    buffer_pool_manager_->UnpinPage(node->GetPageId(), false);
+    return iid;
 
     return -1;
 }
