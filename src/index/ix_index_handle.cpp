@@ -22,14 +22,19 @@ int IxNodeHandle::lower_bound(const char *target) const {
     // Todo:  实验二任务一
     // 查找当前节点中第一个大于等于target的key，并返回key的位置给上层
     // 提示: 可以采用多种查找方式，如顺序遍历、二分查找等；使用ix_compare()函数进行比较
-    std::pair<IxNodeHandle *, bool> nodep = IxIndexHandle::find_leaf_page(target, Operation::FIND, nullptr);
-    int key_idx = node->lower_bound(key);
+// 二分查找
+    int l = 0, r = this->page_hdr->num_key;
+    while(l < r) {
+        int mid = (l + r) / 2;
+        int temp = ix_compare(get_key(mid), target, file_hdr->col_types_, file_hdr->col_lens_);
+        if(temp >= 0) {
+            r = mid;
+        } else {
+            l = mid + 1;
+        }
+    }
+    return l;
 
-    Iid iid = {.page_no = node->GetPageNo(), .slot_no = key_idx};
-
-    // unpin leaf node
-    buffer_pool_manager_->UnpinPage(node->GetPageId(), false);
-    return iid;
 
     return -1;
 }
@@ -44,6 +49,17 @@ int IxNodeHandle::upper_bound(const char *target) const {
     // Todo:
     // 查找当前节点中第一个大于target的key，并返回key的位置给上层
     // 提示: 可以采用多种查找方式：顺序遍历、二分查找等；使用ix_compare()函数进行比较
+    // 二分查找
+    int l = 1, r = this->page_hdr->num_key;
+    while(l < r) {
+      int mid = (l + r) / 2;
+        if(ix_compare(get_key(mid), target, file_hdr->col_types_, file_hdr->col_lens_) > 0) {
+            r = mid;
+        } else {
+            l = mid + 1;
+        }
+    }
+    return l;
 
     return -1;
 }
@@ -62,7 +78,14 @@ bool IxNodeHandle::leaf_lookup(const char *key, Rid **value) {
     // 2. 判断目标key是否存在
     // 3. 如果存在，获取key对应的Rid，并赋值给传出参数value
     // 提示：可以调用lower_bound()和get_rid()函数。
+    int key_pos = lower_bound(key);
+    if(key_pos == get_size()|| ix_compare(key, get_key(key_pos), file_hdr->col_types_, file_hdr->col_lens_) != 0) {
+      return false;
+    }
+    *value = get_rid(key_pos);
+    return true;
 
+    
     return false;
 }
 
@@ -76,6 +99,9 @@ page_id_t IxNodeHandle::internal_lookup(const char *key) {
     // 1. 查找当前非叶子节点中目标key所在孩子节点（子树）的位置
     // 2. 获取该孩子节点（子树）所在页面的编号
     // 3. 返回页面编号
+    int key_pos = upper_bound(key) - 1;// 应该要减1
+    return value_at(key_pos);
+
 
     return -1;
 }
@@ -206,6 +232,19 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result, Transac
     // 2. 在叶子节点中查找目标key值的位置，并读取key对应的rid
     // 3. 把rid存入result参数中
     // 提示：使用完buffer_pool提供的page之后，记得unpin page；记得处理并发的上锁
+    std::scoped_lock lock{root_latch_}; //lock
+	IxNodeHandle *leaf = (find_leaf_page(key, Operation::FIND, transaction)).first;
+    Rid* rid = nullptr; //initial rid
+	//unpin page
+	buffer_pool_manager_->unpin_page(leaf->get_page_id(), false);
+
+	if(leaf->leaf_lookup(key, &rid)){ //get rid
+		result->push_back(*rid); //insert
+		return true;
+	}
+	else
+		return false;
+
 
     return false;
 }

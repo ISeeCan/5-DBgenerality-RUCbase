@@ -187,27 +187,46 @@ cd build
 需要实现：
 
 ``` plaintext
-int lower_bound(const char *target) const;
+- int lower_bound(const char *target) const;
 用于在当前结点中查找第一个大于或等于target的key的位置。
 
-int upper_bound(const char *target) const;
+- int upper_bound(const char *target) const;
 用于在当前结点中查找第一个大于target的key的位置。
 
-bool leaf_lookup(const char *key, Rid **value);
+- bool leaf_lookup(const char *key, Rid **value);
 ​ 用于叶子结点根据key来查找该结点中的键值对。值value作为传出参数，函数返回是否查找成功。
 
-page_id_t internal_lookup(const char *key);
+- page_id_t internal_lookup(const char *key);
 ​ 用于内部结点根据key来查找该key所在的孩子结点（子树）。
 ```
 
 ###### B+树查找
 
 ``` plaintext
-std::pair<IxNodeHandle *, bool> find_leaf_page(const char *key, Operation operation, Transaction *transaction, bool find_first = false);
+- std::pair<IxNodeHandle *, bool> find_leaf_page(const char *key, Operation operation, Transaction *transaction, bool find_first = false);
 ​用于查找指定键所在的叶子结点。
 ​从根结点开始，不断向下查找孩子结点，直到找到包含该key的叶子结点
 
-bool get_value(const char *key, std::vector<Rid> *result, Transaction *transaction);
+- bool get_value(const char *key, std::vector<Rid> *result, Transaction *transaction);
 用于查找指定键在叶子结点中的对应的值result。
 提示：可以调用find_leaf_page()和leaf_lookup()函数。
+```
+
+##### 任务2 B+树的插入
+
+###### 结点内的插入
+
+需要实现：
+
+``` plaintext
+    void insert_pairs(int pos, const char *key, const Rid *rid, int n);
+    int insert(const char *key, const Rid &value);
+```
+
+###### B+树的插入
+``` plaintext
+    // B+树的插入
+    page_id_t insert_entry(const char *key, const Rid &value, Transaction *transaction);
+    IxNodeHandle *split(IxNodeHandle *node);
+    void insert_into_parent(IxNodeHandle *old_node, const char *key, IxNodeHandle *new_node, Transaction *transaction);
 ```
