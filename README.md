@@ -1,4 +1,4 @@
-**本仓库代替原fork仓库，成为了个人的私有不公开仓库以便核验，项目完成后将取代另一仓库**
+**本仓库代替原fork仓库，成为了个人的私有不公开仓库以便核验，项目完成后将取代另一仓库**:
 
 部分文档可能存在更新，最新版请详见[实验发布地址](https://github.com/ruc-deke/rucbase-lab)
 
@@ -12,7 +12,7 @@
 
 [实验说明](docs/Rucbase-Lab1[存储管理实验文档].md)
 
-##### 任务1.1 磁盘存储管理器：
+##### 任务1.1 磁盘存储管理器
 
 补全src/storage/disk_manager.cpp中的函数
 
@@ -43,7 +43,6 @@ offset：偏移量，以字节为单位。这里传入的是 page_no * PAGE_SIZE
 whence：参照位置，SEEK_SET 表示从文件开头开始偏移 offset 个字节，直接定位到指定页的位置。假设 PAGE_SIZE 为 4096 字节（典型数据库页大小），如果 page_no = 2，lseek 将把文件指针定位到 2 * 4096 = 8192 字节处，相当于文件的第三个页位置。
 
 lseek 的返回值是新文件指针的位置（即新的偏移量），如果返回值是 -1，说明定位失败，通常会抛出 UnixError。
-    
 
 ##### 任务1.2 缓冲池替换策略
 
@@ -62,7 +61,7 @@ lseek 的返回值是新文件指针的位置（即新的偏移量），如果�
 知识点：std::scoped_lock
 
 功能：std::scoped_lock 是 C++17 引入的一种锁，能够实现作用域内自动加锁和解锁功能。std::scoped_lock 会在构造时自动上锁，在作用域结束或遇到异常退出时自动解锁，避免因未手动解锁而造成的死锁问题。
-    
+
 锁对象 latch_：latch_ 是一个互斥锁（std::mutex），保护函数的关键区域，确保只有一个线程能够进入并执行操作。其他线程只能在加锁结束后才能继续访问。
 
 ##### 任务1.3 缓冲池管理器
@@ -74,7 +73,7 @@ lseek 的返回值是新文件指针的位置（即新的偏移量），如果�
 [链接](src/storage/buffer_pool_manager.cpp)
 
 需补全函数：
-    
+  
 ``` cpp
     public:
         BufferPoolManager(size_t pool_size, DiskManager *disk_manager);
@@ -176,7 +175,7 @@ cd build
 ./bin/record_manager_test
 ```
 
-#### 实验一
+#### 实验二
 
 ##### 任务1 B+树的查找
 
@@ -187,6 +186,7 @@ cd build
 需要实现：
 
 ``` plaintext
+class IxNodeHandle
 - int lower_bound(const char *target) const;
 用于在当前结点中查找第一个大于或等于target的key的位置。
 
@@ -203,6 +203,7 @@ cd build
 ###### B+树查找
 
 ``` plaintext
+class IxIndexHandle
 - std::pair<IxNodeHandle *, bool> find_leaf_page(const char *key, Operation operation, Transaction *transaction, bool find_first = false);
 ​用于查找指定键所在的叶子结点。
 ​从根结点开始，不断向下查找孩子结点，直到找到包含该key的叶子结点
@@ -219,14 +220,46 @@ cd build
 需要实现：
 
 ``` plaintext
-    void insert_pairs(int pos, const char *key, const Rid *rid, int n);
-    int insert(const char *key, const Rid &value);
+class IxNodeHandle
+- void insert_pairs(int pos, const char *key, const Rid *rid, int n);
+-   int insert(const char *key, const Rid &value);
 ```
 
 ###### B+树的插入
+
 ``` plaintext
+class IxIndexHandle
     // B+树的插入
-    page_id_t insert_entry(const char *key, const Rid &value, Transaction *transaction);
+- page_id_t insert_entry(const char *key, const Rid &value, Transaction *transaction);
     IxNodeHandle *split(IxNodeHandle *node);
-    void insert_into_parent(IxNodeHandle *old_node, const char *key, IxNodeHandle *new_node, Transaction *transaction);
+- void insert_into_parent(IxNodeHandle *old_node, const char *key, IxNodeHandle *new_node, Transaction *transaction);
 ```
+
+##### 任务3 B+树的删除
+
+###### 结点内的删除
+
+``` plaintext
+class IxNodeHandle
+    // 结点内的删除
+- void erase_pair(int pos);
+- int remove(const char *key);
+###### B+树的删除
+```
+
+###### B+树的删除
+
+``` plaintext
+class IxIndexHandle
+    // B+树的删除
+- bool delete_entry(const char *key, Transaction *transaction);
+- bool coalesce_or_redistribute(IxNodeHandle *node, Transaction *transaction = nullptr,bool *root_is_latched = nullptr);
+- bool coalesce(IxNodeHandle **neighbor_node, IxNodeHandle **node, IxNodeHandle **parent, int index,Transaction *transaction, bool *root_is_latched);
+- void redistribute(IxNodeHandle *neighbor_node, IxNodeHandle *node, IxNodeHandle *parent, int index);
+- bool adjust_root(IxNodeHandle *old_root_node);
+```
+
+##### 任务4 B+树索引并发控制
+
+本任务要求修改IxIndexHandle类的原实现逻辑，让其支持对B+树索引的并发查找、插入、删除操作。
+学生可以选择实现并发的粒度，选择下面两种并发粒度的任意一种进行实现即可。
