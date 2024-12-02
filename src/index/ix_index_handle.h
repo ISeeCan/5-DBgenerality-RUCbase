@@ -22,11 +22,17 @@ inline int ix_compare(const char *a, const char *b, ColType type, int col_len) {
         case TYPE_INT: {
             int ia = *(int *)a;
             int ib = *(int *)b;
+
+             std::cout << "  ix_com ia,ib:" << ia << ' ' << ib << std::endl;
+
             return (ia < ib) ? -1 : ((ia > ib) ? 1 : 0);
         }
         case TYPE_FLOAT: {
             float fa = *(float *)a;
             float fb = *(float *)b;
+
+             std::cout << "  ix_com fa,fb:" << fa << ' ' << fb << std::endl;
+
             return (fa < fb) ? -1 : ((fa > fb) ? 1 : 0);
         }
         case TYPE_STRING:
@@ -40,6 +46,9 @@ inline int ix_compare(const char* a, const char* b, const std::vector<ColType>& 
     int offset = 0;
     for(size_t i = 0; i < col_types.size(); ++i) {
         int res = ix_compare(a + offset, b + offset, col_types[i], col_lens[i]);
+
+        //std::cout << " - ix_Com res:" << res << std::endl;
+
         if(res != 0) return res;
         offset += col_lens[i];
     }

@@ -9,7 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "ix_index_handle.h"
-
+#include <iostream>
 #include "ix_scan.h"
 
 /**
@@ -27,6 +27,9 @@ int IxNodeHandle::lower_bound(const char *target) const {
     while(l < r) {
         int mid = (l + r) / 2;
         int temp = ix_compare(get_key(mid), target, file_hdr->col_types_, file_hdr->col_lens_);
+        
+        std::cout << "lower_bound l,mid,r:" << l << ' ' << mid << ' '<< r << std::endl;
+        
         if(temp >= 0) {
             r = mid;
         } else {
@@ -34,9 +37,6 @@ int IxNodeHandle::lower_bound(const char *target) const {
         }
     }
     return l;
-
-
-    return -1;
 }
 
 /**
@@ -79,14 +79,15 @@ bool IxNodeHandle::leaf_lookup(const char *key, Rid **value) {
     // 3. 如果存在，获取key对应的Rid，并赋值给传出参数value
     // 提示：可以调用lower_bound()和get_rid()函数。
     int key_pos = lower_bound(key);
+    std::cout << " leaf_lookup keypos:" << key_pos << std::endl;
+    std::cout << " leaf_lookup getsize:" << get_size() << std::endl;
+    std::cout << " leaf_lookup ix_compare:" << ix_compare(key, get_key(key_pos), file_hdr->col_types_, file_hdr->col_lens_) << std::endl;
     if(key_pos == get_size()|| ix_compare(key, get_key(key_pos), file_hdr->col_types_, file_hdr->col_lens_) != 0) {
       return false;
     }
     *value = get_rid(key_pos);
     return true;
 
-    
-    return false;
 }
 
 /**
@@ -101,9 +102,6 @@ page_id_t IxNodeHandle::internal_lookup(const char *key) {
     // 3. 返回页面编号
     int key_pos = upper_bound(key) - 1;// 应该要减1
     return value_at(key_pos);
-
-
-    return -1;
 }
 
 /**
@@ -266,21 +264,18 @@ bool IxIndexHandle::get_value(const char *key, std::vector<Rid> *result, Transac
     // 2. 在叶子节点中查找目标key值的位置，并读取key对应的rid
     // 3. 把rid存入result参数中
     // 提示：使用完buffer_pool提供的page之后，记得unpin page；记得处理并发的上锁
-    std::scoped_lock lock{root_latch_}; //lock
-	IxNodeHandle *leaf = (find_leaf_page(key, Operation::FIND, transaction)).first;
-    Rid* rid = nullptr; //initial rid
-	//unpin page
-	buffer_pool_manager_->unpin_page(leaf->get_page_id(), false);
+    std::scoped_lock lock{root_latch_};
+    auto leaf = find_leaf_page(key, Operation::FIND, transaction).first;
+    Rid* rid;
+    bool return_val = leaf->leaf_lookup(key, &rid);
 
-	if(leaf->leaf_lookup(key, &rid)){ //get rid
-		result->push_back(*rid); //insert
-		return true;
-	}
-	else
-		return false;
+    std::cout << "GET Value return_val:" << return_val << std::endl;
 
-
-    return false;
+    if(return_val) {
+        result->push_back(*rid);
+    }
+    buffer_pool_manager_->unpin_page(leaf->get_page_id(), false);
+    return return_val;
 }
 
 /**
@@ -348,6 +343,7 @@ void IxIndexHandle::insert_into_parent(IxNodeHandle *old_node, const char *key, 
     // 3. 获取key对应的rid，并将(key, rid)插入到父亲结点
     // 4. 如果父亲结点仍需要继续分裂，则进行递归插入
     // 提示：记得unpin page
+    
 }
 
 /**
@@ -363,25 +359,19 @@ page_id_t IxIndexHandle::insert_entry(const char *key, const Rid &value, Transac
     // 3. 如果结点已满，分裂结点，并把新结点的相关信息插入父节点
     // 提示：记得unpin page；若当前叶子节点是最右叶子节点，则需要更新file_hdr_.last_leaf；记得处理并发的上锁
 
-    std::scoped_lock lock{root_latch_};//set lock
+    std::scoped_lock lock{root_latch_};
+    IxNodeHandle* leaf = find_leaf_page(key, Operation::INSERT, transaction).first;
+    int size = leaf->get_size();
+    bool success = (leaf->insert(key, value) != size);
+    if(leaf->get_size() == leaf->get_max_size()) {
+        auto neo_node = split(leaf);
+        this->insert_into_parent(leaf, neo_node->get_key(0), neo_node, transaction);
+        buffer_pool_manager_->unpin_page(neo_node->get_page_id(), true);
+    }
+    // Here, dirty, not sure.
+    buffer_pool_manager_->unpin_page(leaf->get_page_id(), success);
+    return success;
 
-	IxNodeHandle *leaf = (find_leaf_page(key, Operation::INSERT, transaction)).first;
-	int cur_size = leaf->get_size(); //current size	    
-	if(leaf->insert(key,value)== cur_size){// can not insert  key重复
-		buffer_pool_manager_->unpin_page(leaf->get_page_id(), false);	
-		return false;
-	}
-	else if(leaf->get_size() == leaf->get_max_size()){ // leaf is full
-		IxNodeHandle* new_node = split(leaf); //split
-		if(leaf->get_page_no() == file_hdr_->last_leaf_)
-			file_hdr_->last_leaf_ = new_node->get_page_no(); //renew last leaf
-		insert_into_parent(leaf, new_node->get_key(0), new_node, transaction);
-		buffer_pool_manager_->unpin_page(new_node->get_page_id(), true);//unpin
-	}
-	buffer_pool_manager_->unpin_page(leaf->get_page_id(), false);
-	return true;
-
-    return -1;
 }
 
 /**

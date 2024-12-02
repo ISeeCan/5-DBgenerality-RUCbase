@@ -332,6 +332,7 @@ TEST_F(BPlusTreeTests, InsertTest) {
         bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
         ASSERT_EQ(insert_ret, true);
 
+        //std::cout << "Drawing---" << std::endl;
         // Draw(buffer_pool_manager_.get(), "insert" + std::to_string(key) + ".dot");
     }
 
@@ -340,7 +341,17 @@ TEST_F(BPlusTreeTests, InsertTest) {
         rids.clear();
         index_key = (const char *)&key;
         ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
-        EXPECT_EQ(rids.size(), 1);
+        EXPECT_EQ(rids.size(), 1);      //die here
+
+
+    // if (rids.size() > 0) {          //mytest
+    // int32_t value = key & 0xFFFFFFFF;
+    // EXPECT_EQ(rids[0].slot_no, value);
+    // } else {
+    // FAIL() << "Expected rids size to be 1, but it was 0.";
+    // }
+
+
 
         int32_t value = key & 0xFFFFFFFF;
         EXPECT_EQ(rids[0].slot_no, value);
