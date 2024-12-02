@@ -23,7 +23,7 @@ inline int ix_compare(const char *a, const char *b, ColType type, int col_len) {
             int ia = *(int *)a;
             int ib = *(int *)b;
 
-             std::cout << "  ix_com ia,ib:" << ia << ' ' << ib << std::endl;
+             //std::cout << "  ix_com ia,ib:" << ia << ' ' << ib << std::endl;
 
             return (ia < ib) ? -1 : ((ia > ib) ? 1 : 0);
         }
@@ -31,7 +31,7 @@ inline int ix_compare(const char *a, const char *b, ColType type, int col_len) {
             float fa = *(float *)a;
             float fb = *(float *)b;
 
-             std::cout << "  ix_com fa,fb:" << fa << ' ' << fb << std::endl;
+             //std::cout << "  ix_com fa,fb:" << fa << ' ' << fb << std::endl;
 
             return (fa < fb) ? -1 : ((fa > fb) ? 1 : 0);
         }

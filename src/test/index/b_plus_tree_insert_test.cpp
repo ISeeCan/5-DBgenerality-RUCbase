@@ -333,7 +333,7 @@ TEST_F(BPlusTreeTests, InsertTest) {
         ASSERT_EQ(insert_ret, true);
 
         //std::cout << "Drawing---" << std::endl;
-        // Draw(buffer_pool_manager_.get(), "insert" + std::to_string(key) + ".dot");
+         Draw(buffer_pool_manager_.get(), "insert" + std::to_string(key) + ".dot");
     }
 
     std::vector<Rid> rids;

@@ -238,23 +238,16 @@ std::pair<IxNodeHandle *, bool> IxIndexHandle::find_leaf_page(const char *key, O
     // 3. 找到包含该key值的叶子结点停止查找，并返回叶子节点
     IxNodeHandle *root = fetch_node(this->file_hdr_->root_page_);
 	IxNodeHandle *cur = root;
-    std::cout << "Calling find_leaf_page with key: " << key << std::endl;
     
 	while(!cur->is_leaf_page()){ //traverse
-        std::cout <<"find_leaf_page traversing" << std::endl;
-        std::cout << "Looking up key: " << key << ", found node: " << cur->internal_lookup(key) << std::endl;
-        std::cout << "Current node is leaf: " << cur->is_leaf_page() << std::endl;
-        if (key == nullptr || key[0] == '\0') {
-            std::cerr << "Invalid key provided, aborting lookup." << std::endl;
-            return std::make_pair(nullptr,false);  // 或者其他适当的错误处理
-        }
-        sleep(1);
 		IxNodeHandle *parent = cur;
 		cur = fetch_node(cur->internal_lookup(key));
 		//unpin page
 		buffer_pool_manager_->unpin_page(parent->get_page_id(), false);
 	}
 	return std::make_pair(cur,true); //get leaf node
+
+    return std::make_pair(nullptr, false);
 }
 
 /**
@@ -350,34 +343,7 @@ void IxIndexHandle::insert_into_parent(IxNodeHandle *old_node, const char *key, 
     // 3. 获取key对应的rid，并将(key, rid)插入到父亲结点
     // 4. 如果父亲结点仍需要继续分裂，则进行递归插入
     // 提示：记得unpin page
-    if(old_node->is_root_page()) { //is root, then create new root
-		IxNodeHandle* new_root = create_node();
-		//initial
-		new_root->page_hdr->num_key = 0;
-		new_root->page_hdr->is_leaf = 0;
-		new_root->page_hdr->parent = INVALID_PAGE_ID;
-		new_root->page_hdr->next_free_page_no = IX_NO_PAGE;
-
-		new_root->insert_pair(0, old_node->get_key(0), (Rid){old_node->get_page_no(), -1});
-		new_root->insert_pair(1, key, (Rid){new_node->get_page_no(), -1});
-	
-		int new_root_page = new_root->get_page_no();
-		file_hdr_->root_page_ = new_root_page;
-		new_node->page_hdr->parent = new_root_page;
-		old_node->page_hdr->parent = new_root_page;
-	}
-	else{
-		IxNodeHandle* parent_node = fetch_node(old_node->get_parent_page_no());
-		int rid_idx = parent_node->find_child(old_node);
-		parent_node->insert_pair(rid_idx + 1, key, (Rid){new_node->get_page_id().page_no, -1});
-
-		if(parent_node->get_size() == parent_node->get_max_size()){  //父节点也满了，需要再次分裂
-			IxNodeHandle* new_parent = split(parent_node);
-			insert_into_parent(parent_node, new_parent->get_key(0), new_parent, transaction);
-			buffer_pool_manager_->unpin_page(new_parent->get_page_id(), true);
-		}
-		buffer_pool_manager_->unpin_page(parent_node->get_page_id(), true);
-	}
+    
 }
 
 /**
