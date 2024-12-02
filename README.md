@@ -263,3 +263,25 @@ class IxIndexHandle
 
 本任务要求修改IxIndexHandle类的原实现逻辑，让其支持对B+树索引的并发查找、插入、删除操作。
 学生可以选择实现并发的粒度，选择下面两种并发粒度的任意一种进行实现即可。
+
+##### 测试
+
+编译生成可执行文件进行测试：
+
+``` bash
+cd build
+
+make b_plus_tree_insert_test
+./bin/b_plus_tree_insert_test
+
+make b_plus_tree_delete_test
+./bin/b_plus_tree_delete_test
+
+make b_plus_tree_concurrent_test
+./bin/b_plus_tree_concurrent_test
+```
+
+注意：
+
+在本实验中的所有测试只调用get_value()、insert_entry()、delete_entry()这三个函数。学生可以自行添加和修改辅助函数，但不能修改以上三个函数的声明。
+进行测试前，学生还需自行完成src/system/sm_manager.cpp中的SmManager::create_index()函数，方可进行测试。

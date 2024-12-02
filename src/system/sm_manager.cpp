@@ -198,7 +198,34 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
  * @param {Context*} context
  */
 void SmManager::create_index(const std::string& tab_name, const std::vector<std::string>& col_names, Context* context) {
-    
+    TabMeta &tab = db_.get_table(tab_name);     //还挺别致的换成了vector
+    auto col = tab.get_col(col_names.back());
+    if (col->index) {
+        // std::string throwstr = col_names.back();
+        //const std::string throwstr = "throwstr";
+        throw IndexExistsError(tab_name, col_names);
+    }
+    // Create index file
+    int col_idx = col - tab.cols.begin();
+    ix_manager_->create_index(tab_name, tab.cols);  // 这里调用了   //真要命
+    // Open index file
+    auto ih = ix_manager_->open_index(tab_name, tab.cols);
+    // Get record file handle
+    auto file_handle = fhs_.at(tab_name).get();
+    // Index all records into index
+    for (RmScan rm_scan(file_handle); !rm_scan.is_end(); rm_scan.next()) {
+        auto rec = file_handle->get_record(rm_scan.rid(), context);  // rid是record的存储位置，作为value插入到索引里
+        const char *key = rec->data + col->offset;
+        // record data里以各个属性的offset进行分隔，属性的长度为col len，record里面每个属性的数据作为key插入索引里
+        ih->insert_entry(key, rm_scan.rid(), context->txn_);
+    }
+    // Store index handle
+    auto index_name = ix_manager_->get_index_name(tab_name, tab.cols);
+    assert(ihs_.count(index_name) == 0);
+    // ihs_[index_name] = std::move(ih);
+    ihs_.emplace(index_name, std::move(ih));
+    // Mark column index as created
+    col->index = true;
 }
 
 /**
