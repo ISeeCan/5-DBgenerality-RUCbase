@@ -73,6 +73,9 @@ class IxManager {
         if (col_tot_len > IX_MAX_COL_LEN) {
             throw InvalidColLengthError(col_tot_len);
         }
+        //front thing is changed
+
+
         // 根据 |page_hdr| + (|attr| + |rid|) * (n + 1) <= PAGE_SIZE 求得n的最大值btree_order
         // 即 n <= btree_order，那么btree_order就是每个结点最多可插入的键值对数量（实际还多留了一个空位，但其不可插入）
         int btree_order = static_cast<int>((PAGE_SIZE - sizeof(IxPageHdr)) / (col_tot_len + sizeof(Rid)) - 1);
@@ -162,5 +165,6 @@ class IxManager {
         disk_manager_->write_page(ih->fd_, IX_FILE_HDR_PAGE, data, ih->file_hdr_->tot_len_);
         // 缓冲区的所有页刷到磁盘，注意这句话必须写在close_file前面
         buffer_pool_manager_->flush_all_pages(ih->fd_);
+        disk_manager_->close_file(ih->fd_);
     }
 };
