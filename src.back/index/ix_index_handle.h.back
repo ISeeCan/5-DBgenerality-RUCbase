@@ -13,79 +13,6 @@ See the Mulan PSL v2 for more details. */
 #include "ix_defs.h"
 #include "transaction/transaction.h"
 
-//add:
-#include <shared_mutex>
-class Transaction;
-template <typename Key, typename Value, typename Hash = std::hash<Key>>
-class HashMap {
-    class Iterator {
-        friend class HashMap;
-       private:
-        typename std::unordered_map<Key, Value, Hash>::iterator it_;
-
-       public:
-        explicit Iterator(typename std::unordered_map<Key, Value, Hash>::iterator it) : it_(it) {}
-
-        Iterator &operator++() {
-            ++it_;
-            return *this;
-        }
-
-        std::pair<const Key, Value> &operator*() { return *it_; }
-
-        bool operator!=(const Iterator &other) const { return it_ != other.it_; }
-    };
-
-   private:
-    std::unordered_map<Key, Value, Hash> map_;
-    std::mutex mutex_;
-
-   public:
-    HashMap() : mutex_(std::mutex()) {}
-
-    template <typename Predicate>
-    Iterator find_if(Predicate pred) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (auto it = map_.begin(); it != map_.end(); ++it) {
-            if (pred(*it)) {
-                return Iterator(it);
-            }
-        }
-        return Iterator(map_.end());
-    }
-
-    Value &operator[](const Key &key) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return map_[key];
-    }
-
-    void erase(const Key &key) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        map_.erase(key);
-    }
-
-    void clear() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return map_.clear();
-    }
-
-    void erase(Iterator iter) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        map_.erase(iter.it_);
-    }
-
-    Iterator begin() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return Iterator(map_.begin());
-    }
-
-    Iterator end() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return Iterator(map_.end());
-    }
-};
-// add stop
-
 enum class Operation { FIND = 0, INSERT, DELETE };  // 三种操作：查找、插入、删除
 
 static const bool binary_search = false;
@@ -197,13 +124,10 @@ class IxNodeHandle {
     void insert_pairs(int pos, const char *key, const Rid *rid, int n);
 
     page_id_t internal_lookup(const char *key);
-    std::pair<page_id_t, int> internal_lookup(const char *key,bool flag);
 
     bool leaf_lookup(const char *key, Rid **value);
-    std::pair<bool, int> leaf_lookup(const char *key, Rid **value,bool flag);
 
     int insert(const char *key, const Rid &value);
-    std::pair<int, int> insert(const char *key, const Rid &value,bool flag);
 
     // 用于在结点中的指定位置插入单个键值对
     void insert_pair(int pos, const char *key, const Rid &rid) { insert_pairs(pos, key, &rid, 1); }
@@ -211,7 +135,6 @@ class IxNodeHandle {
     void erase_pair(int pos);
 
     int remove(const char *key);
-    std::pair<int, int> remove(const char *key,bool flag);
 
     /**
      * @brief used in internal node to remove the last key in root node, and return the last child
@@ -257,15 +180,6 @@ class IxIndexHandle {
     IxFileHdr* file_hdr_;                       // 存了root_page，但其初始化为2（第0页存FILE_HDR_PAGE，第1页存LEAF_HEADER_PAGE）
     std::mutex root_latch_;
 
-//add
-    HashMap<int, std::shared_mutex *> node_mutex;
-    void write_lock(IxNodeHandle *node) { node_mutex[node->get_page_no()]->lock(); }
-    void write_unlock(IxNodeHandle *node) { node_mutex[node->get_page_no()]->unlock(); }
-    void read_lock(IxNodeHandle *node) { node_mutex[node->get_page_no()]->lock_shared(); }
-    void read_unlock(IxNodeHandle *node) { node_mutex[node->get_page_no()]->unlock_shared(); }
-    void unlock_ancestor(Transaction *transaction);
-//addstop
-
    public:
     IxIndexHandle(DiskManager *disk_manager, BufferPoolManager *buffer_pool_manager, int fd);
 
@@ -301,8 +215,6 @@ class IxIndexHandle {
     Iid leaf_end() const;
 
     Iid leaf_begin() const;
-
-    bool range_query(const char *lk, const char *rk, std::vector<Rid> *result, Transaction *transaction, bool le, bool ge);
 
    private:
     // 辅助函数
