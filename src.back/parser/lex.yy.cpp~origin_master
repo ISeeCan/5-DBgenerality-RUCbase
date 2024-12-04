@@ -1,6 +1,6 @@
-#line 2 "/home/iseecan/Documents/5_DBgenerality/5-DBgenerality-RUCbase/src/parser/lex.yy.cpp"
+#line 2 "/home/ubuntu/ceshi/rdb/src/parser/lex.yy.cpp"
 
-#line 4 "/home/iseecan/Documents/5_DBgenerality/5-DBgenerality-RUCbase/src/parser/lex.yy.cpp"
+#line 4 "/home/ubuntu/ceshi/rdb/src/parser/lex.yy.cpp"
 
 #define  YY_INT_ALIGNED short int
 
@@ -137,11 +137,11 @@ typedef unsigned int flex_uint32_t;
 
 /* Enter a start condition.  This macro really ought to take a parameter,
  * but we do it the disgusting crufty way forced on us by the ()-less
- * definition of BEGIN.
+ * definition of begin.
  */
-#define BEGIN (yy_start) = 1 + 2 *
+#define begin (yy_start) = 1 + 2 *
 /* Translate the current start state into a value that can be later handed
- * to BEGIN to return to the state.  The YYSTATE alias is for lex
+ * to begin to return to the state.  The YYSTATE alias is for lex
  * compatibility.
  */
 #define YY_START (((yy_start) - 1) / 2)
@@ -346,7 +346,7 @@ void yyfree ( void *  );
 	}
 #define YY_AT_BOL() (YY_CURRENT_BUFFER_LVALUE->yy_at_bol)
 
-/* Begin user sect3 */
+/* begin user sect3 */
 
 #define yywrap() (/*CONSTCOND*/1)
 #define YY_SKIP_YYWRAP
@@ -623,9 +623,9 @@ char *yytext;
         } \
     }
 
-#line 627 "/home/iseecan/Documents/5_DBgenerality/5-DBgenerality-RUCbase/src/parser/lex.yy.cpp"
+#line 627 "/home/ubuntu/ceshi/rdb/src/parser/lex.yy.cpp"
 
-#line 629 "/home/iseecan/Documents/5_DBgenerality/5-DBgenerality-RUCbase/src/parser/lex.yy.cpp"
+#line 629 "/home/ubuntu/ceshi/rdb/src/parser/lex.yy.cpp"
 
 #define INITIAL 0
 #define STATE_COMMENT 1
@@ -863,7 +863,7 @@ YY_DECL
 
 #line 48 "lex.l"
     /* block comment */
-#line 867 "/home/iseecan/Documents/5_DBgenerality/5-DBgenerality-RUCbase/src/parser/lex.yy.cpp"
+#line 867 "/home/ubuntu/ceshi/rdb/src/parser/lex.yy.cpp"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -923,12 +923,12 @@ do_action:	/* This label is used only to access EOF actions. */
 case 1:
 YY_RULE_SETUP
 #line 49 "lex.l"
-{ BEGIN(STATE_COMMENT); }
+{ begin(STATE_COMMENT); }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
 #line 50 "lex.l"
-{ BEGIN(INITIAL); }
+{ begin(INITIAL); }
 	YY_BREAK
 case 3:
 /* rule 3 can match eol */
@@ -1183,7 +1183,7 @@ YY_RULE_SETUP
 #line 116 "lex.l"
 ECHO;
 	YY_BREAK
-#line 1187 "/home/iseecan/Documents/5_DBgenerality/5-DBgenerality-RUCbase/src/parser/lex.yy.cpp"
+#line 1187 "/home/ubuntu/ceshi/rdb/src/parser/lex.yy.cpp"
 
 	case YY_END_OF_BUFFER:
 		{

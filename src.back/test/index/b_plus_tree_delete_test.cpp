@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <random>  // for std::default_random_engine
-#include <iostream>
 
 #include "gtest/gtest.h"
 
@@ -252,8 +251,6 @@ class BPlusTreeTests : public ::testing::Test {
             check_tree(ih, node->value_at(i));  // 递归子树
         }
         buffer_pool_manager_->unpin_page(node->get_page_id(), false);
-
-        std::cout << "check_tree ok" << std::endl;
     }
 
     /**
@@ -305,84 +302,18 @@ class BPlusTreeTests : public ::testing::Test {
         ASSERT_EQ(scan.is_end(), true);
         ASSERT_EQ(it, mock.end());
     }
+
 };
 
 /**
- * @brief 插入10个key，范围为1~10，插入的value取key的低32位，使用GetValue()函数测试插入的value(即Rid)是否正确
- * 每次插入后都会调用Draw()函数生成一个B+树的图
+ * @brief insert 1~10 and delete 1~9 (will draw pictures)
  * 
  * @note lab2 计分：10 points
  */
-TEST_F(BPlusTreeTests, InsertTest) {
+TEST_F(BPlusTreeTests, InsertAndDeleteTest1) {
     const int64_t scale = 10;
-    const int order = 3;
-
-    assert(order > 2 && order <= ih_->file_hdr_->btree_order_);
-    ih_->file_hdr_->btree_order_ = order;
-
-    std::vector<int64_t> keys;
-    for (int64_t key = 1; key <= scale; key++) {
-        keys.push_back(key);
-    }
-    std::cout << "TEST_F small push_key ok" << std::endl;
-
-    const char *index_key;
-    for (auto key : keys) {
-        int32_t value = key & 0xFFFFFFFF;  // key的低32位
-        Rid rid = {.page_no = static_cast<int32_t>(key >> 32),
-                   .slot_no = value};  // page_id = (key>>32), slot_num = (key & 0xFFFFFFFF)
-        index_key = (const char *)&key;
-        bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
-        ASSERT_EQ(insert_ret, true);
-
-        //std::cout << "Drawing---" << std::endl;
-        // Draw(buffer_pool_manager_.get(), "insert" + std::to_string(key) + ".dot");
-    }
-    std::cout << "TEST_F small insert_key ok" << std::endl;
-
-    std::vector<Rid> rids;
-    for (auto key : keys) {
-        rids.clear();
-        index_key = (const char *)&key;
-        std::cout << "TEST_F small get_value" << std::endl;
-        ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
-        EXPECT_EQ(rids.size(), 1);      //die here
-
-
-    // if (rids.size() > 0) {          //mytest
-    // int32_t value = key & 0xFFFFFFFF;
-    // EXPECT_EQ(rids[0].slot_no, value);
-    // } else {
-    // FAIL() << "Expected rids size to be 1, but it was 0.";
-    // }
-
-
-
-        int32_t value = key & 0xFFFFFFFF;
-        EXPECT_EQ(rids[0].slot_no, value);
-    }
-    std::cout << "TEST_F small have_Value_check ok" << std::endl;
-
-    // 找不到未插入的数据
-    for (int key = scale + 1; key <= scale + 100; key++) {
-        rids.clear();
-        index_key = (const char *)&key;
-        ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
-        EXPECT_EQ(rids.size(), 0);
-    }
-    std::cout << "TEST_F small notHave_check ok" << std::endl;
-
-    std::cout << "TEST_F small ok" << std::endl;
-}
-
-/**
- * @brief 随机插入1~10000
- * 
- * @note lab2 计分：20 points
- */
-TEST_F(BPlusTreeTests, LargeScaleTest) {
-    const int64_t scale = 10000;
-    const int order = 256;
+    const int64_t delete_scale = 9;  // 删除的个数最好小于scale，等于的话会变成空树
+    const int order = 4;
 
     assert(order > 2 && order <= ih_->file_hdr_->btree_order_);
     ih_->file_hdr_->btree_order_ = order;
@@ -392,10 +323,7 @@ TEST_F(BPlusTreeTests, LargeScaleTest) {
         keys.push_back(key);
     }
 
-    // randomized the insertion order
-    auto rng = std::default_random_engine{};
-    std::shuffle(keys.begin(), keys.end(), rng);
-
+    // insert keys
     const char *index_key;
     for (auto key : keys) {
         int32_t value = key & 0xFFFFFFFF;  // key的低32位
@@ -405,8 +333,9 @@ TEST_F(BPlusTreeTests, LargeScaleTest) {
         bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
         ASSERT_EQ(insert_ret, true);
     }
+    Draw(buffer_pool_manager_.get(), "insert10.dot");
 
-    // test GetValue
+    // scan keys by GetValue()
     std::vector<Rid> rids;
     for (auto key : keys) {
         rids.clear();
@@ -418,20 +347,148 @@ TEST_F(BPlusTreeTests, LargeScaleTest) {
         EXPECT_EQ(rids[0].slot_no, value);
     }
 
-    // test Ixscan
-    int64_t start_key = 1;
+    // delete keys
+    std::vector<int64_t> delete_keys;
+    for (int64_t key = 1; key <= delete_scale; key++) {  // 1~9
+        delete_keys.push_back(key);
+    }
+    for (auto key : delete_keys) {
+        index_key = (const char *)&key;
+        bool delete_ret = ih_->delete_entry(index_key, txn_.get());  // 调用Delete
+        ASSERT_EQ(delete_ret, true);
+
+        // Draw(buffer_pool_manager_.get(), "InsertAndDeleteTest1_delete" + std::to_string(key) + ".dot");
+    }
+
+    // scan keys by Ixscan
+    int64_t start_key = *delete_keys.rbegin() + 1;
     int64_t current_key = start_key;
+    int64_t size = 0;
+
     IxScan scan(ih_.get(), ih_->leaf_begin(), ih_->leaf_end(), buffer_pool_manager_.get());
     while (!scan.is_end()) {
-        int32_t insert_page_no = static_cast<int32_t>(current_key >> 32);
-        int32_t insert_slot_no = current_key & 0xFFFFFFFF;
-        Rid rid = scan.rid();
-        EXPECT_EQ(rid.page_no, insert_page_no);
-        EXPECT_EQ(rid.slot_no, insert_slot_no);
+        auto rid = scan.rid();
+        EXPECT_EQ(rid.page_no, 0);
+        EXPECT_EQ(rid.slot_no, current_key);
         current_key++;
+        size++;
         scan.next();
     }
-    EXPECT_EQ(current_key, keys.size() + 1);
+    EXPECT_EQ(size, keys.size() - delete_keys.size());
+}
 
-    std::cout << "TEST_F large ok" << std::endl;
+/**
+ * @brief insert 1~10 and delete 1,2,3,4,7,5 (will draw pictures)
+ *
+ * @note lab2 计分：10 points
+ */
+TEST_F(BPlusTreeTests, InsertAndDeleteTest2) {
+    const int64_t scale = 10;
+    const int order = 4;
+
+    assert(order > 2 && order <= ih_->file_hdr_->btree_order_);
+    ih_->file_hdr_->btree_order_ = order;
+
+    std::vector<int64_t> keys;
+    for (int64_t key = 1; key <= scale; key++) {
+        keys.push_back(key);
+    }
+
+    // insert keys
+    const char *index_key;
+    for (auto key : keys) {
+        int32_t value = key & 0xFFFFFFFF;  // key的低32位
+        Rid rid = {.page_no = static_cast<int32_t>(key >> 32),
+                   .slot_no = value};  // page_id = (key>>32), slot_num = (key & 0xFFFFFFFF)
+        index_key = (const char *)&key;
+        bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
+        ASSERT_EQ(insert_ret, true);
+    }
+    // Draw(buffer_pool_manager_.get(), "insert10.dot");
+
+    // scan keys by GetValue()
+    std::vector<Rid> rids;
+    for (auto key : keys) {
+        rids.clear();
+        index_key = (const char *)&key;
+        ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
+        EXPECT_EQ(rids.size(), 1);
+
+        int64_t value = key & 0xFFFFFFFF;
+        EXPECT_EQ(rids[0].slot_no, value);
+    }
+
+    // delete keys
+    std::vector<int64_t> delete_keys = {1, 2, 3, 4, 7, 5};
+    for (auto key : delete_keys) {
+        index_key = (const char *)&key;
+        bool delete_ret = ih_->delete_entry(index_key, txn_.get());  // 调用Delete
+        ASSERT_EQ(delete_ret, true);
+
+        // Draw(buffer_pool_manager_.get(), "InsertAndDeleteTest2_delete" + std::to_string(key) + ".dot");
+    }
+}
+
+/**
+ * @brief 随机插入和删除多个键值对
+ * 
+ * @note lab2 计分：20 points
+ */
+TEST_F(BPlusTreeTests, LargeScaleTest) {
+    const int order = 255;  // 若order太小，而插入数据过多，将会超出缓冲池
+    const int scale = 20000;
+
+    if (order >= 2 && order <= ih_->file_hdr_->btree_order_) {
+        ih_->file_hdr_->btree_order_ = order;
+    }
+    int add_cnt = 0;
+    int del_cnt = 0;
+    std::multimap<int, Rid> mock;
+    mock.clear();
+    int num = 0;
+    while (add_cnt + del_cnt < scale) {
+        double dice = rand() * 1. / RAND_MAX;
+        double insert_prob = 1. - mock.size() / (0.5 * scale);
+        if (mock.empty() || dice < insert_prob) {
+            // Insert
+            int rand_key = rand() % scale;
+            if (mock.find(rand_key) != mock.end()) {  // 防止插入重复的key
+                // printf("重复key=%d!\n", rand_key);
+                continue;
+            }
+            Rid rand_val = {.page_no = rand(), .slot_no = rand()};
+            printf("insert rand key=%d\n", rand_key);
+            bool insert_ret = ih_->insert_entry((const char *)&rand_key, rand_val, txn_.get());  // 调用Insert
+            ASSERT_EQ(insert_ret, true);
+            mock.insert(std::make_pair(rand_key, rand_val));
+            add_cnt++;
+            // Draw(buffer_pool_manager_.get(),
+            //      "MixTest2_" + std::to_string(num) + "_insert" + std::to_string(rand_key) + ".dot");
+        } else {
+            // Delete
+            if (mock.size() == 1) {  // 只剩最后一个结点时不删除，以防变成空树
+                continue;
+            }
+            int rand_idx = rand() % mock.size();
+            auto it = mock.begin();
+            for (int k = 0; k < rand_idx; k++) {
+                it++;
+            }
+            int key = it->first;
+            printf("delete rand key=%d\n", key);
+            if(key == 129){
+                std::cout << "now" ;
+            }
+            bool delete_ret = ih_->delete_entry((const char *)&key, txn_.get());
+            ASSERT_EQ(delete_ret, true);
+            mock.erase(it);
+            del_cnt++;
+            // Draw(buffer_pool_manager_.get(),
+            //      "MixTest2_" + std::to_string(num) + "_delete" + std::to_string(key) + ".dot");
+        }
+        // check_all(ih_.get(), mock);
+        num++;
+    }
+    std::cout << "Insert keys count: " << add_cnt << '\n' << "Delete keys count: " << del_cnt << '\n';
+    check_all(ih_.get(), mock);
 }

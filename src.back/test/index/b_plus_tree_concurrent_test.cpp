@@ -1,7 +1,8 @@
-#include <algorithm>
+#include <chrono>  // NOLINT
 #include <cstdio>
+#include <functional>
 #include <random>  // for std::default_random_engine
-#include <iostream>
+#include <thread>  // NOLINT
 
 #include "gtest/gtest.h"
 
@@ -12,18 +13,18 @@
 #include "storage/buffer_pool_manager.h"
 #include "system/sm.h"
 #include "record/rm.h"
-const std::string TEST_DB_NAME = "BPlusTreeInsertTest_db";  // 以数据库名作为根目录
-const std::string TEST_FILE_NAME = "table1";                // 测试文件名的前缀
-// const int index_no = 0;                                     // 索引编号
-const std::vector<std::string> TEST_COL = {"col1"};
+
+const std::string TEST_DB_NAME = "BPlusTreeConcurrentTest_db";  // 以数据库名作为根目录
+const std::string TEST_FILE_NAME = "table1";                    // 测试文件名的前缀
+const int index_no = 0;                 
+const std::vector<std::string> TEST_COL = {"col1"};             
 // 创建的索引文件名为"table1.0.idx"（TEST_FILE_NAME + index_no + .idx）
 
 /** 注意：每个测试点只测试了单个文件！
  * 对于每个测试点，先创建和进入目录TEST_DB_NAME
  * 然后在此目录下创建和打开索引文件"table1.0.idx"，记录IxIndexHandle */
 
-// Add by jiawen
-class BPlusTreeTests : public ::testing::Test {
+class BPlusTreeConcurrentTest : public ::testing::Test {
    public:
     std::unique_ptr<DiskManager> disk_manager_;
     std::unique_ptr<BufferPoolManager> buffer_pool_manager_;
@@ -252,8 +253,6 @@ class BPlusTreeTests : public ::testing::Test {
             check_tree(ih, node->value_at(i));  // 递归子树
         }
         buffer_pool_manager_->unpin_page(node->get_page_id(), false);
-
-        std::cout << "check_tree ok" << std::endl;
     }
 
     /**
@@ -305,88 +304,92 @@ class BPlusTreeTests : public ::testing::Test {
         ASSERT_EQ(scan.is_end(), true);
         ASSERT_EQ(it, mock.end());
     }
+
 };
 
-/**
- * @brief 插入10个key，范围为1~10，插入的value取key的低32位，使用GetValue()函数测试插入的value(即Rid)是否正确
- * 每次插入后都会调用Draw()函数生成一个B+树的图
- * 
- * @note lab2 计分：10 points
- */
-TEST_F(BPlusTreeTests, InsertTest) {
-    const int64_t scale = 10;
-    const int order = 3;
+// helper function to launch multiple threads
+template <typename... Args>
+void LaunchParallelTest(uint64_t num_threads, Args &&...args) {
+    std::vector<std::thread> thread_group;
 
-    assert(order > 2 && order <= ih_->file_hdr_->btree_order_);
-    ih_->file_hdr_->btree_order_ = order;
-
-    std::vector<int64_t> keys;
-    for (int64_t key = 1; key <= scale; key++) {
-        keys.push_back(key);
+    // Launch a group of threads
+    for (uint64_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
+        thread_group.push_back(std::thread(args..., thread_itr));
     }
-    std::cout << "TEST_F small push_key ok" << std::endl;
+
+    // Join the threads with the main thread
+    for (uint64_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
+        thread_group[thread_itr].join();
+    }
+}
+
+// only for DEBUG
+int getThreadId() {
+    // std::scoped_lock latch{latch_};
+    std::stringstream ss;
+    ss << std::this_thread::get_id();
+    // ss << transaction->GetThreadId();
+    uint64_t thread_id = std::stoull(ss.str());
+    return static_cast<int>(thread_id % 13);
+}
+
+// helper function to insert
+void InsertHelper(IxIndexHandle *tree, const std::vector<int64_t> &keys,
+                  __attribute__((unused)) uint64_t thread_itr = 0) {
+    // create transaction
+    Transaction *transaction = new Transaction(0);  // 注意，每个线程都有一个事务；不能从上层传入一个共用的事务
 
     const char *index_key;
     for (auto key : keys) {
-        int32_t value = key & 0xFFFFFFFF;  // key的低32位
-        Rid rid = {.page_no = static_cast<int32_t>(key >> 32),
-                   .slot_no = value};  // page_id = (key>>32), slot_num = (key & 0xFFFFFFFF)
+        int32_t value = key & 0xFFFFFFFF;
+        Rid rid = {.page_no = static_cast<int32_t>(key >> 32), .slot_no = value};
         index_key = (const char *)&key;
-        bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
-        ASSERT_EQ(insert_ret, true);
-
-        //std::cout << "Drawing---" << std::endl;
-        // Draw(buffer_pool_manager_.get(), "insert" + std::to_string(key) + ".dot");
+        tree->insert_entry(index_key, rid, transaction);
     }
-    std::cout << "TEST_F small insert_key ok" << std::endl;
 
     std::vector<Rid> rids;
     for (auto key : keys) {
         rids.clear();
         index_key = (const char *)&key;
-        std::cout << "TEST_F small get_value" << std::endl;
-        ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
-        EXPECT_EQ(rids.size(), 1);      //die here
+        tree->get_value(index_key, &rids, transaction);  // 调用GetValue
+        EXPECT_EQ(rids.size(), 1);
 
-
-    // if (rids.size() > 0) {          //mytest
-    // int32_t value = key & 0xFFFFFFFF;
-    // EXPECT_EQ(rids[0].slot_no, value);
-    // } else {
-    // FAIL() << "Expected rids size to be 1, but it was 0.";
-    // }
-
-
-
-        int32_t value = key & 0xFFFFFFFF;
+        int64_t value = key & 0xFFFFFFFF;
         EXPECT_EQ(rids[0].slot_no, value);
     }
-    std::cout << "TEST_F small have_Value_check ok" << std::endl;
 
-    // 找不到未插入的数据
-    for (int key = scale + 1; key <= scale + 100; key++) {
-        rids.clear();
+    delete transaction;
+}
+
+// helper function to delete
+void DeleteHelper(IxIndexHandle *tree, const std::vector<int64_t> &keys,
+                  __attribute__((unused)) uint64_t thread_itr = 0) {
+    // create transaction
+    Transaction *transaction = new Transaction(0);  // 注意，每个线程都有一个事务；不能从上层传入一个共用的事务
+
+    const char *index_key;
+    for (auto key : keys) {
         index_key = (const char *)&key;
-        ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
-        EXPECT_EQ(rids.size(), 0);
+        tree->delete_entry(index_key, transaction);
     }
-    std::cout << "TEST_F small notHave_check ok" << std::endl;
 
-    std::cout << "TEST_F small ok" << std::endl;
+    delete transaction;
 }
 
 /**
- * @brief 随机插入1~10000
+ * @brief concurrent insert 1~10000
  * 
- * @note lab2 计分：20 points
+ * @note lab2 计分：10 points
  */
-TEST_F(BPlusTreeTests, LargeScaleTest) {
+TEST_F(BPlusTreeConcurrentTest, InsertScaleTest) {
     const int64_t scale = 10000;
-    const int order = 256;
+    const int thread_num = 50;
+    const int order = 255;
 
     assert(order > 2 && order <= ih_->file_hdr_->btree_order_);
     ih_->file_hdr_->btree_order_ = order;
 
+    // keys to Insert
     std::vector<int64_t> keys;
     for (int64_t key = 1; key <= scale; key++) {
         keys.push_back(key);
@@ -396,42 +399,67 @@ TEST_F(BPlusTreeTests, LargeScaleTest) {
     auto rng = std::default_random_engine{};
     std::shuffle(keys.begin(), keys.end(), rng);
 
-    const char *index_key;
-    for (auto key : keys) {
-        int32_t value = key & 0xFFFFFFFF;  // key的低32位
-        Rid rid = {.page_no = static_cast<int32_t>(key >> 32),
-                   .slot_no = value};  // page_id = (key>>32), slot_num = (key & 0xFFFFFFFF)
-        index_key = (const char *)&key;
-        bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
-        ASSERT_EQ(insert_ret, true);
-    }
+    // 这里调用了insert_entry，并且用thread_num个进程并发插入（并发查找也放进去了）
+    LaunchParallelTest(thread_num, InsertHelper, ih_.get(), keys);
+    printf("Insert key 1~%ld finished\n", scale);
 
-    // test GetValue
-    std::vector<Rid> rids;
-    for (auto key : keys) {
-        rids.clear();
-        index_key = (const char *)&key;
-        ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
-        EXPECT_EQ(rids.size(), 1);
-
-        int64_t value = key & 0xFFFFFFFF;
-        EXPECT_EQ(rids[0].slot_no, value);
-    }
-
-    // test Ixscan
     int64_t start_key = 1;
     int64_t current_key = start_key;
+
     IxScan scan(ih_.get(), ih_->leaf_begin(), ih_->leaf_end(), buffer_pool_manager_.get());
     while (!scan.is_end()) {
-        int32_t insert_page_no = static_cast<int32_t>(current_key >> 32);
-        int32_t insert_slot_no = current_key & 0xFFFFFFFF;
-        Rid rid = scan.rid();
-        EXPECT_EQ(rid.page_no, insert_page_no);
-        EXPECT_EQ(rid.slot_no, insert_slot_no);
-        current_key++;
+        auto rid = scan.rid();
+        EXPECT_EQ(rid.page_no, 0);
+        EXPECT_EQ(rid.slot_no, current_key);
+        current_key = current_key + 1;
         scan.next();
     }
     EXPECT_EQ(current_key, keys.size() + 1);
+}
 
-    std::cout << "TEST_F large ok" << std::endl;
+/**
+ * @brief concurrent insert 1~10000 and delete 1~9900
+ * 
+ * @note lab2 计分：20 points
+ */
+TEST_F(BPlusTreeConcurrentTest, MixScaleTest) {
+    const int64_t scale = 10000;
+    const int64_t delete_scale = 9900;
+    const int thread_num = 50;
+    const int order = 255;
+
+    assert(order > 2 && order <= ih_->file_hdr_->btree_order_);
+    ih_->file_hdr_->btree_order_ = order;
+
+    // keys to Insert
+    std::vector<int64_t> keys;
+    for (int64_t key = 1; key <= scale; key++) {
+        keys.push_back(key);
+    }
+    // 这里调用了insert_entry，并且用thread_num个进程并发插入（包括并发查找）
+    LaunchParallelTest(thread_num, InsertHelper, ih_.get(), keys);
+    printf("Insert key 1~%ld finished\n", scale);
+
+    // keys to Delete
+    std::vector<int64_t> delete_keys;
+    for (int64_t key = 1; key <= delete_scale; key++) {
+        delete_keys.push_back(key);
+    }
+    LaunchParallelTest(thread_num, DeleteHelper, ih_.get(), delete_keys);
+    printf("Delete key 1~%ld finished\n", delete_scale);
+
+    int64_t start_key = *delete_keys.rbegin() + 1;
+    int64_t current_key = start_key;
+    int64_t size = 0;
+
+    IxScan scan(ih_.get(), ih_->leaf_begin(), ih_->leaf_end(), buffer_pool_manager_.get());
+    while (!scan.is_end()) {
+        auto rid = scan.rid();
+        EXPECT_EQ(rid.page_no, 0);
+        EXPECT_EQ(rid.slot_no, current_key);
+        current_key++;
+        size++;
+        scan.next();
+    }
+    EXPECT_EQ(size, keys.size() - delete_keys.size());
 }
