@@ -285,3 +285,63 @@ make b_plus_tree_concurrent_test
 
 在本实验中的所有测试只调用get_value()、insert_entry()、delete_entry()这三个函数。学生可以自行添加和修改辅助函数，但不能修改以上三个函数的声明。
 进行测试前，学生还需自行完成src/system/sm_manager.cpp中的SmManager::create_index()函数，方可进行测试。
+
+#### 实验三
+
+我们有[指导文档](docs/Rucbase-Lab3[查询执行实验指导].md)
+
+Rucbase查询执行模块采用的是火山模型(Volcano Model),你可以通过[链接](https://www.computer.org/csdl/journal/tk/1994/01/k0120/13rRUwI5TRe)获取相应论文阅读以理解火山模型的基本概念，并结合项目结构文档理解系统查询模块的整体架构和处理流程。
+
+在本测试中，要求把select语句的输出写入到指定文件中，写入逻辑已经在select_from函数中给出，不要修改写入格式。 对于执行错误的SQL语句，需要打印failure到output.txt文件中。
+
+##### 实验一：元数据管理和DDL语句 (25分)
+
+完成[src/system/sm_manager.cpp](src/system/sm_manager.cpp)中的接口，使得系统能够支持DDL语句，具体包括create table、drop table、create index和drop index语句。
+
+需要实现SmManager类的:
+
+``` c
+open_db(...)：系统通过调用该接口打开数据库
+close_db(...)：系统通过调用该接口关闭数据库
+drop_table(...)：删除表
+create_index(...)：创建索引
+drop_index(...)：删除索引
+```
+
+进行测试：
+
+``` bash
+cd src/test/query
+python query_unit_test.py basic_query_test1.sql # 25分
+python query_unit_test.py basic_query_test{i}.sql  # replace {i} with the desired test file index
+```
+
+##### 实验二：DML语句实现（75分）
+
+完成src/execution文件夹下执行算子中的空缺函数，使得系统能够支持增删改查四种DML语句。
+
+相关代码位于src/execution文件夹下，其中需要完成的文件包括[executor_delete.h](src/execution/executor_delete.h)、[executor_nestedloop_join.h](src/execution/executor_nestedloop_join.h)、[executor_projection.h](src/execution/executor_projection.h)、[executor_seq_scan.h](src/execution/executor_seq_scan.h)、[executor_update.h](src/execution/executor_update.h)，已经实现的文件包括executor_insert.h和execution_manager.cpp。
+
+需要仿照insert算子实现如下算子：
+
+`SeqScan`算子：你需要实现该算子的Next()、beginTuple()和nextTuple()接口，用于表的扫描，你需要调用RmScan中的相关函数辅助实现（这些接口在lab1中已经实现）；
+`Projection`算子：你需要实现该算子的Next()、beginTuple()和nextTuple()接口，该算子用于投影操作的实现；
+`NestedLoopJoin`算子：你需要实现该算子的Next()、beginTuple()和nextTuple()接口，该算子用于连接操作，在本实验中，你只需要支持两表连接；
+`Delete`算子：你需要实现该算子的Next()接口，该算子用于删除操作；
+`Update`算子：你需要实现该算子的Next()接口，该算子用于更新操作。
+所有算子都继承了抽象算子类execuotr_abstract，它给出了各个算子继承的基类抽象算子的声明和相应方法。
+
+*在本系统中，默认规定用的连接方式是连接算子作为右孩子*，需要补充完成LoopJoin算子中的以下3个方法：
+
+``` c
+void beginTuple() override {}
+void nextTuple() override {}
+std::unique_ptr<RmRecord> Next() override{}
+```
+
+进行测试：
+
+``` bash
+cd src/test/query
+python query_test_basic.py  # 100分
+```
