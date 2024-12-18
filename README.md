@@ -292,6 +292,8 @@ make b_plus_tree_concurrent_test
 
 Rucbase查询执行模块采用的是火山模型(Volcano Model),你可以通过[链接](https://www.computer.org/csdl/journal/tk/1994/01/k0120/13rRUwI5TRe)获取相应论文阅读以理解火山模型的基本概念，并结合项目结构文档理解系统查询模块的整体架构和处理流程。
 
+P.S.: 另外一个[论文链接](https://paperhub.s3.amazonaws.com/dace52a42c07f7f8348b08dc2b186061.pdf)
+
 在本测试中，要求把select语句的输出写入到指定文件中，写入逻辑已经在select_from函数中给出，不要修改写入格式。 对于执行错误的SQL语句，需要打印failure到output.txt文件中。
 
 ##### 实验一：元数据管理和DDL语句 (25分)
@@ -314,6 +316,13 @@ drop_index(...)：删除索引
 cd src/test/query
 python query_unit_test.py basic_query_test1.sql # 25分
 python query_unit_test.py basic_query_test{i}.sql  # replace {i} with the desired test file index
+```
+
+实际测试：
+
+``` bash
+cd src/test/query
+python query_unit_test.py basic_query_test1.sql # 25分
 ```
 
 ##### 实验二：DML语句实现（75分）
