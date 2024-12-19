@@ -42,44 +42,34 @@ class UpdateExecutor : public AbstractExecutor {
     std::unique_ptr<RmRecord> Next() override {
         //Need to do
         // Update each rid from record file and index file
-        for (auto& rid : rids_) {
+                std::vector<IxIndexHandle *> ihs(tab_.cols.size(), nullptr);
+        for (auto &set_clause : set_clauses_) {
+            auto lhs_col = tab_.get_col(set_clause.lhs.col_name);
+            if (lhs_col->index) {
+                size_t lhs_col_idx = lhs_col - tab_.cols.begin();
+                // lab3 task3 Todo
+                // 获取需要的索引句柄,填充vector ihs
+                // lab3 task3 Todo end
+            }
+        }
+        // Update each rid from record file and index file
+        for (auto &rid : rids_) {
             auto rec = fh_->get_record(rid, context_);
-            RmRecord record = *rec;
-            for (auto& set_clause : set_clauses_) {
-                auto lhs_col = tab_.get_col(set_clause.lhs.col_name);
-                memcpy(rec->data + lhs_col->offset, set_clause.rhs.raw->data, lhs_col->len);
-            }
+            // lab3 task3 Todo
             // Remove old entry from index
-            for (size_t i = 0; i < tab_.indexes.size(); ++i) {
-                auto& index = tab_.indexes[i];
-                auto ih =
-                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
-                char* key = new char[index.col_tot_len];
-                int offset = 0;
-                for (int j = 0; j < index.col_num; ++j) {
-                    memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
-                }
-                ih->delete_entry(key, context_->txn_);
-            }
+            // lab3 task3 Todo end
+
             // record a update operation into the transaction
-            WriteRecord* wr = new WriteRecord(WType::UPDATE_TUPLE, tab_name_, rid, record);
-            context_->txn_->append_write_record(wr);
+            RmRecord update_record{rec->size};
+            memcpy(update_record.data, rec->data, rec->size);
+
+            // lab3 task3 Todo
             // Update record in record file
-            fh_->update_record(rid, rec->data, context_);
-            // Insert new index into index
-            for (size_t i = 0; i < tab_.indexes.size(); ++i) {
-                auto& index = tab_.indexes[i];
-                auto ih =
-                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
-                char* key = new char[index.col_tot_len];
-                int offset = 0;
-                for (int j = 0; j < index.col_num; ++j) {
-                    memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
-                }
-                ih->insert_entry(key, rid, context_->txn_);
-            }
+            // lab3 task3 Todo end
+
+            // lab3 task3 Todo
+            // Insert new entry into index
+            // lab3 task3 Todo end
         }
         return nullptr;
     }
