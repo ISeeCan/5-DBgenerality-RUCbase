@@ -40,26 +40,33 @@ class DeleteExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override { 
         //Need to do
-        std::vector<IxIndexHandle *> ihs(tab_.cols.size(), nullptr);
-        for (size_t col_i = 0; col_i < tab_.cols.size(); col_i++) {
-            if (tab_.cols[col_i].index) {
-                // lab3 task3 Todo
-                // 获取需要的索引句柄,填充vector ihs
-                // lab3 task3 Todo end
-            }
-        }
-        // Delete each rid from record file and index file
-        for (auto &rid : rids_) {
-            auto rec = fh_->get_record(rid, context_);
-            // lab3 task3 Todo
-            // Delete from index file
-            // Delete from record file
-            // lab3 task3 Todo end
+        RmRecord rec(fh_->get_file_hdr().record_size);
 
-            // record a delete operation into the transaction
-            RmRecord delete_record{rec->size};
-            memcpy(delete_record.data, rec->data, rec->size);
+        // 1. 将record对象通过RmFileHandles删除对应表的数据文件
+        for (const auto &rid : rids_) {
+            fh_->delete_record(rid, context_);
         }
+
+        // 2. 如果表上存在索引，删除相关索引文件
+        for (size_t i = 0; i < tab_.indexes.size(); ++i) {
+            auto &index = tab_.indexes[i];
+            auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
+            char *key = new char[index.col_tot_len];
+            int offset = 0;
+            for (size_t i = 0; i < index.col_num; ++i) {
+                memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);
+                offset += index.cols[i].len;
+            }
+            ih->delete_entry(key, context_->txn_);
+            delete[] key;
+        }
+
+        // lab4: 记录删除操作（for transaction rollback）
+        // for (const auto &rid : rids_) {
+        //     WriteRecord *write_rec = new WriteRecord(WType::DELETE_TUPLE, tab_name_, rid);
+        //     context_->txn_->append_write_record(write_rec);
+        // }
+        // insert和delete操作不需要返回record对应指针，返回nullptr即可
         return nullptr;
     }
 
