@@ -254,38 +254,59 @@ void SmManager::drop_table(const std::string& tab_name, Context* context) {
  * @param {Context*} context
  */
 void SmManager::create_index(const std::string& tab_name, const std::vector<std::string>& col_names, Context* context) {
-    // 建立索引要读表上的所有记录，所以申请表级读锁
-    context->lock_mgr_->lock_shared_on_table(context->txn_, fhs_[tab_name]->GetFd());
+    //小东西还挺别致
+    
+// 获取表元数据
+    TabMeta &tab = db_.get_table(tab_name);
 
-    TabMeta& tab = db_.get_table(tab_name);
-    if (ix_manager_->exists(tab_name, col_names)) {
-        throw IndexExistsError(tab_name, col_names);
-    }
-
-    std::vector<ColMeta> cols;
-    for (auto& col_name : col_names) {
-        cols.push_back(*tab.get_col(col_name));
-    }
-    ix_manager_->create_index(tab_name, cols);
-    std::unique_ptr<IxIndexHandle> ih = ix_manager_->open_index(tab_name, cols);
-    int col_tot_len = 0;
-    for (ColMeta& col : cols) {
-        col_tot_len += col.len;
-    }
-    RmFileHandle* file_handle = fhs_.at(tab_name).get();
-    char key[col_tot_len];
-    for (RmScan scan(file_handle); !scan.is_end(); scan.next()) {
-        std::unique_ptr<RmRecord> record = file_handle->get_record(scan.rid(), context);
-        int offset = 0;
-        for (size_t i = 0; i < cols.size(); ++i) {
-            memcpy(key + offset, record.get()->data + cols[i].offset, cols[i].len);
-            offset += cols[i].len;
+    // 确保所有列都存在，并检查是否已有索引
+    std::vector<ColMeta*> cols;
+    for (const auto& col_name : col_names) {
+        auto col = tab.get_col(col_name);  // 返回迭代器
+        if (col->index) {
+            throw IndexExistsError(tab_name, col_names);
         }
-        ih->insert_entry(key, scan.rid(), context->txn_);
+        cols.push_back(&(*col));  // 解引用迭代器并取地址，转换为 ColMeta*
     }
-    tab.indexes.push_back(IndexMeta{tab_name, col_tot_len, (int)cols.size(), cols});
-    ihs_.emplace(ix_manager_->get_index_name(tab_name, col_names), std::move(ih));
 
+
+    // 准备列元数据（ColMeta）列表
+    std::vector<ColMeta> index_cols;
+    for (auto col : cols) {
+        index_cols.push_back(*col); // 将指针解引用得到 ColMeta
+    }
+
+    // 调用新的 create_index 接口
+    ix_manager_->create_index(tab_name, index_cols);
+
+    // 打开索引文件，使用列元数据重载
+    auto ih = ix_manager_->open_index(tab_name, index_cols);
+
+    // 获取记录文件句柄
+    auto file_handle = fhs_.at(tab_name).get();
+
+    // 将所有记录插入到多列索引
+    for (RmScan rm_scan(file_handle); !rm_scan.is_end(); rm_scan.next()) {
+        auto rec = file_handle->get_record(rm_scan.rid(), context); // 获取记录
+        std::string composite_key;
+        for (auto col : cols) {
+            composite_key.append(rec->data + col->offset, col->len); // 依次拼接列值作为复合键
+        }
+        ih->insert_entry(composite_key.data(), rm_scan.rid(), context->txn_);
+    }
+
+    // 获取索引名称，使用列元数据重载
+    auto index_name = ix_manager_->get_index_name(tab_name, index_cols);
+
+    assert(ihs_.count(index_name) == 0);
+    ihs_.emplace(index_name, std::move(ih));
+
+    // 标记列索引已创建
+    for (auto col : cols) {
+        col->index = true;
+    }
+
+    // 刷新元数据
     flush_meta();
 }
 
