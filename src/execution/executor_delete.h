@@ -22,7 +22,7 @@ class DeleteExecutor : public AbstractExecutor {
     RmFileHandle *fh_;              // 表的数据文件句柄
     std::vector<Rid> rids_;         // 需要删除的记录的位置
     std::string tab_name_;          // 表名称
-    SmManager *sm_manager_;
+    SmManager *sm_manager_;         // 数据库管理器
 
    public:
     DeleteExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Condition> conds,
@@ -40,28 +40,28 @@ class DeleteExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override { 
         //Need to do
-        RmRecord rec(fh_->get_file_hdr().record_size);
+        RmRecord rec(fh_->get_file_hdr().record_size);  //由头信息获得数据大小，创建rec
 
         // 1. 将record对象通过RmFileHandles删除对应表的数据文件
         for (const auto &rid : rids_) {
-            fh_->delete_record(rid, context_);
+            fh_->delete_record(rid, context_);      //删除数据文件
         }
 
         // 2. 如果表上存在索引，删除相关索引文件
         for (size_t i = 0; i < tab_.indexes.size(); ++i) {
-            auto &index = tab_.indexes[i];
-            auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
+            auto &index = tab_.indexes[i];      //获取元数据信息
+            auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get(); //先获得indexhandeler名称，再取映射
             char *key = new char[index.col_tot_len];
             int offset = 0;
             for (size_t i = 0; i < index.col_num; ++i) {
-                memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);
-                offset += index.cols[i].len;
+                memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);       //从rec复制到key，收集记录中涉及的所有列的数据，并将它们拼接成一个完整的索引键
+                offset += index.cols[i].len;    //更新到下一个索引列
             }
-            ih->delete_entry(key, context_->txn_);
+            ih->delete_entry(key, context_->txn_);  //调用 IxIndexHandle 的 delete_entry 函数，从索引文件中删除对应的索引条目
             delete[] key;
         }
 
-        // lab4: 记录删除操作（for transaction rollback）
+        // 为lab4: 记录删除操作（for transaction rollback） // 暂时搁置
         // for (const auto &rid : rids_) {
         //     WriteRecord *write_rec = new WriteRecord(WType::DELETE_TUPLE, tab_name_, rid);
         //     context_->txn_->append_write_record(write_rec);
