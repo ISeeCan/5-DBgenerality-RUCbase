@@ -15,7 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "system/sm.h"
 
-class NestedLoopJoinExecutor : public AbstractExecutor {
+class NestedLoopJoinExecutor : public AbstractExecutor {    //嵌套链接模块
    private:
     std::unique_ptr<AbstractExecutor> left_;    // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> right_;   // 右儿子节点（需要join的表）
@@ -110,16 +110,16 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
         //NEW ADD
         
         auto lhs_col = get_col(rec_cols, cond.lhs_col); //获取左表条件的列元数据
-        char *lhs = lrec->data + lhs_col->offset;
+        char *lhs = lrec->data + lhs_col->offset;   //获得参与比较的左值
         char *rhs;
         ColType rhs_type;
         if (cond.is_rhs_val) {  //是常量则直接获取常量值并设置它的类型
             rhs_type = cond.rhs_val.type;
-            rhs = cond.rhs_val.raw->data;
+            rhs = cond.rhs_val.raw->data;   //常量右值直接获得
         } else {
             // rhs is a column
             auto rhs_col = get_col(rec_cols, cond.rhs_col);
-            rhs_type = rhs_col->type;
+            rhs_type = rhs_col->type;       //右表的字段位置相对于整个连接结果的记录布局
             rhs = rrec->data + rhs_col->offset - left_->tupleLen();
         }
         assert(rhs_type == lhs_col->type);  //确保左右列的类型一致

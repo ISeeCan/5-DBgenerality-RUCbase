@@ -57,12 +57,12 @@ class SeqScanExecutor : public AbstractExecutor {
      */
     void beginTuple() override {
         //Need to do
-        scan_ = std::make_unique<RmScan>(fh_);
+        scan_ = std::make_unique<RmScan>(fh_);  //创建一个 RmScan 执行器
         for (; !scan_->is_end(); scan_->next()) {
             rid_ = scan_->rid();
             try {
-                auto rec = fh_->get_record(rid_, context_);
-                if (eval_conds(cols_, fed_conds_, rec.get())) {
+                auto rec = fh_->get_record(rid_, context_); //获取记录内容
+                if (eval_conds(cols_, fed_conds_, rec.get())) { //如果符合条件
                     break;
                 }
             } catch (RecordNotFoundError &e) {
@@ -78,7 +78,7 @@ class SeqScanExecutor : public AbstractExecutor {
     void nextTuple() override {
         //Need to do
         assert(!is_end());
-        for (scan_->next(); !scan_->is_end(); scan_->next()) {
+        for (scan_->next(); !scan_->is_end(); scan_->next()) {  //原理相似，直接next扫描
             rid_ = scan_->rid();
             auto rec = fh_->get_record(rid_, context_);
             if (eval_conds(cols_, fed_conds_, rec.get())) {
@@ -101,7 +101,7 @@ class SeqScanExecutor : public AbstractExecutor {
 
     Rid &rid() override { return rid_; }
 
-    bool eval_cond(const std::vector<ColMeta> &rec_cols, const Condition &cond, const RmRecord *rec) {
+    bool eval_cond(const std::vector<ColMeta> &rec_cols, const Condition &cond, const RmRecord *rec) {      //与嵌套链接中相似
         //New ADD
         auto lhs_col = get_col(rec_cols, cond.lhs_col);
         char *lhs = rec->data + lhs_col->offset;
