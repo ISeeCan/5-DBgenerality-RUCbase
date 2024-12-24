@@ -39,18 +39,18 @@ class InsertExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override {
         // Make record buffer
-        RmRecord rec(fh_->get_file_hdr().record_size);
+        RmRecord rec(fh_->get_file_hdr().record_size);  //创建缓冲区
         for (size_t i = 0; i < values_.size(); i++) {
             auto &col = tab_.cols[i];
             auto &val = values_[i];
-            if (col.type != val.type) {
+            if (col.type != val.type) { //检查数据类型是否一致
                 throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
             }
-            val.init_raw(col.len);
-            memcpy(rec.data + col.offset, val.raw->data, col.len);
+            val.init_raw(col.len);  //初始化 Value 对象，分配内存以存储数据
+            memcpy(rec.data + col.offset, val.raw->data, col.len);  //将每个值（val.raw->data）拷贝到记录缓冲区 rec.data 的相应位置
         }
         // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_);
+        rid_ = fh_->insert_record(rec.data, context_);  //添加记录
         
         // Insert into index
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
@@ -62,7 +62,7 @@ class InsertExecutor : public AbstractExecutor {
                 memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);
                 offset += index.cols[i].len;
             }
-            ih->insert_entry(key, rid_, context_->txn_);
+            ih->insert_entry(key, rid_, context_->txn_);    //插入数据到相应位置
         }
         return nullptr;
     }

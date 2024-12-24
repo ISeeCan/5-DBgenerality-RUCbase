@@ -17,13 +17,13 @@ See the Mulan PSL v2 for more details. */
 
 class UpdateExecutor : public AbstractExecutor {
    private:
-    TabMeta tab_;
-    std::vector<Condition> conds_;
-    RmFileHandle *fh_;
-    std::vector<Rid> rids_;
-    std::string tab_name_;
-    std::vector<SetClause> set_clauses_;
-    SmManager *sm_manager_;
+    TabMeta tab_;                       // 表的元数据
+    std::vector<Condition> conds_;      // update的条件
+    RmFileHandle *fh_;                  // 表的数据文件句柄
+    std::vector<Rid> rids_;             // 需要删除的记录的位置
+    std::string tab_name_;              // 表名称
+    std::vector<SetClause> set_clauses_;    //更新的列和值
+    SmManager *sm_manager_;             // 数据库管理器
 
    public:
     UpdateExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<SetClause> set_clauses,
@@ -43,25 +43,25 @@ class UpdateExecutor : public AbstractExecutor {
         //Need to do
         // Update each rid from record file and index file
         for (auto &rid : rids_) {
-            auto rec = fh_->get_record(rid, context_);
+            auto rec = fh_->get_record(rid, context_);      //从数据文件中获取记录
             for (auto &set_clause : set_clauses_) {
                 auto lhs_col = tab_.get_col(set_clause.lhs.col_name);
-                memcpy(rec->data + lhs_col->offset, set_clause.rhs.raw->data, lhs_col->len);
+                memcpy(rec->data + lhs_col->offset, set_clause.rhs.raw->data, lhs_col->len);    //将新的值（set_clause.rhs.raw->data）复制到记录中相应列的位置
             }
             // Remove old entry from index
             for (auto & index : tab_.indexes) {
                 auto ih =
-                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
+                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();   //获取索引的名称，并获得IndexHandle以操作该索引
                 char *key = new char[index.col_tot_len];
                 int offset = 0;
                 for (size_t j = 0; j < index.col_num; ++j) {
-                    memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
+                    memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);  //拼接为一个完整的索引键
                     offset += index.cols[j].len;
                 }
-                ih->delete_entry(key, context_->txn_);
+                ih->delete_entry(key, context_->txn_);  //删除旧数据
             }
             // Update record in record file
-            fh_->update_record(rid, rec->data, context_);
+            fh_->update_record(rid, rec->data, context_);   //更新记录
             // Insert new index into index
             for (auto & index : tab_.indexes) {
                 auto ih =
@@ -72,7 +72,7 @@ class UpdateExecutor : public AbstractExecutor {
                     memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
                     offset += index.cols[j].len;
                 }
-                ih->insert_entry(key, rid, context_->txn_);
+                ih->insert_entry(key, rid, context_->txn_); //同理的在相应位置插入新数据
             }
         }
         return nullptr;

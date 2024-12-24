@@ -17,11 +17,11 @@ See the Mulan PSL v2 for more details. */
 
 class AbstractExecutor {
    public:
-    Rid _abstract_rid;
+    Rid _abstract_rid;  //标识当前操作的记录
 
     Context *context_;
 
-    virtual ~AbstractExecutor() = default;
+    virtual ~AbstractExecutor() = default;      //都是虚函数以统一接口
 
     virtual size_t tupleLen() const { return 0; };
 
