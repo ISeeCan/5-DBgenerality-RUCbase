@@ -20,7 +20,7 @@ class ProjectionExecutor : public AbstractExecutor {
     std::unique_ptr<AbstractExecutor> prev_;        // 投影节点的儿子节点
     std::vector<ColMeta> cols_;                     // 需要投影的字段
     size_t len_;                                    // 字段总长度
-    std::vector<size_t> sel_idxs_;                  
+    std::vector<size_t> sel_idxs_;                  //存储选择列在原始表格中的位置。这个索引用于在投影操作中提取正确的列
 
    public:
     ProjectionExecutor(std::unique_ptr<AbstractExecutor> prev, const std::vector<TabCol> &sel_cols) {
@@ -29,8 +29,8 @@ class ProjectionExecutor : public AbstractExecutor {
         size_t curr_offset = 0;
         auto &prev_cols = prev_->cols();
         for (auto &sel_col : sel_cols) {
-            auto pos = get_col(prev_cols, sel_col);
-            sel_idxs_.push_back(pos - prev_cols.begin());
+            auto pos = get_col(prev_cols, sel_col); //根据列名或列描述符返回该列在 prev_cols 中的位置
+            sel_idxs_.push_back(pos - prev_cols.begin());   //设置sel_idxs_
             auto col = *pos;
             col.offset = curr_offset;
             curr_offset += col.len;
@@ -62,12 +62,12 @@ class ProjectionExecutor : public AbstractExecutor {
         auto &prev_cols = prev_->cols();
         auto prev_rec = prev_->Next();
         auto &proj_cols = cols_;
-        auto proj_rec = std::make_unique<RmRecord>(len_);
+        auto proj_rec = std::make_unique<RmRecord>(len_);   //创建一条新的记录 proj_rec，它的长度是投影后的长度
         for (size_t proj_idx = 0; proj_idx < proj_cols.size(); proj_idx++) {
             size_t prev_idx = sel_idxs_[proj_idx];
-            auto &prev_col = prev_cols[prev_idx];
-            auto &proj_col = proj_cols[proj_idx];
-            memcpy(proj_rec->data + proj_col.offset, prev_rec->data + prev_col.offset, prev_col.len);
+            auto &prev_col = prev_cols[prev_idx];   //获取原始记录中与当前投影列对应的列元数据
+            auto &proj_col = proj_cols[proj_idx];   //获取当前投影列的列元数据
+            memcpy(proj_rec->data + proj_col.offset, prev_rec->data + prev_col.offset, prev_col.len);   //将原始记录中的列数据拷贝到投影结果记录中的正确位置
         }
         return proj_rec;
         return nullptr;

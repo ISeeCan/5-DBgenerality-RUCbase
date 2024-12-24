@@ -37,7 +37,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
             col.offset += left_->tupleLen();
         }
 
-        cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());
+        cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());    //将左表和右表的列合并成一个字段列表,右表在左表后
         isend = false;
         fed_conds_ = std::move(conds);
 
@@ -45,9 +45,9 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
     }
 
     //New Add
-    bool is_end() const override { return left_->is_end(); }
-    size_t tupleLen() const override { return len_; }
-    const std::vector<ColMeta> &cols() const override { return cols_; }
+    bool is_end() const override { return left_->is_end(); }    //检查左表是否已经遍历完（是否已经全部结束）
+    size_t tupleLen() const override { return len_; }   //返回连接后每条记录的长度（左表和右表记录长度的总和）
+    const std::vector<ColMeta> &cols() const override { return cols_; } //返回连接后的字段列表（包括左表和右表的所有列）
 
     void beginTuple() override {
         //Need to do
@@ -56,7 +56,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
             return;
         }
         right_->beginTuple();
-        while (!is_end()) {
+        while (!is_end()) { //如果满足连接条件（eval_conds），则跳出循环。
             if (eval_conds(cols_, fed_conds_, left_->Next().get(), right_->Next().get())) {
                 break;
             }
@@ -65,11 +65,14 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
                 left_->nextTuple();
                 right_->beginTuple();
             }
+            //如果右表的记录遍历完，则开始遍历下一条左表记录，并重新从头开始遍历右表
         }
     }
 
     void nextTuple() override {
         //Need to do
+        //right_->nextTuple()：让右表移动到下一条记录。
+        //如果右表的记录已经遍历完，则移动到左表的下一条记录，并重新开始遍历右表。
         assert(!is_end());
         right_->nextTuple();
         if (right_->is_end()) {
@@ -90,6 +93,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
 
     std::unique_ptr<RmRecord> Next() override {
         //Need to do
+        //递归连接到一块
         assert(!is_end());
         auto record = std::make_unique<RmRecord>(len_);
         auto left_record = left_->Next();
@@ -105,11 +109,11 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
                    const RmRecord *rrec) {
         //NEW ADD
         
-        auto lhs_col = get_col(rec_cols, cond.lhs_col);
+        auto lhs_col = get_col(rec_cols, cond.lhs_col); //获取左表条件的列元数据
         char *lhs = lrec->data + lhs_col->offset;
         char *rhs;
         ColType rhs_type;
-        if (cond.is_rhs_val) {
+        if (cond.is_rhs_val) {  //是常量则直接获取常量值并设置它的类型
             rhs_type = cond.rhs_val.type;
             rhs = cond.rhs_val.raw->data;
         } else {
@@ -118,7 +122,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
             rhs_type = rhs_col->type;
             rhs = rrec->data + rhs_col->offset - left_->tupleLen();
         }
-        assert(rhs_type == lhs_col->type);
+        assert(rhs_type == lhs_col->type);  //确保左右列的类型一致
         int cmp = ix_compare(lhs, rhs, rhs_type, lhs_col->len);
         if (cond.op == OP_EQ) {
             return cmp == 0;
@@ -140,6 +144,7 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
     bool eval_conds(const std::vector<ColMeta> &rec_cols, const std::vector<Condition> &conds, const RmRecord *lrec,
                     const RmRecord *rrec) {
         //NEW ADD
+        //将所有连接条件逐一应用于左表和右表的记录。如果所有条件都满足，返回 true，表示这对记录可以连接
         return std::all_of(conds.begin(), conds.end(),
                            [&](const Condition &cond) { return eval_cond(rec_cols, cond, lrec, rrec); });
     }
