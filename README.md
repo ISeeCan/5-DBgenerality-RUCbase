@@ -389,7 +389,7 @@ if(context->txn_->get_txn_mode() == false)
 
 本实验要求完成事务管理器中的三个接口：事务的开始、提交和终止方法。
 
-- 你需要完成src/transaction/transaction_manager.cpp文件中的以下接口：
+- 你需要完成[src/transaction/transaction_manager.cpp](src/transaction/transaction_manager.cpp)文件中的以下接口：
 
 begin(Transaction*, LogManager*)：该接口提供事务的开始方法。
 
@@ -430,7 +430,7 @@ python transaction_unit_test.py <test_case_name>
 
 首先要求完成锁管理器LockManager类。相关数据结构包括LockDataId、TransactionAbortException、LockRequest、LockRequestQueue等，位于txn_def.h和Lockanager.h文件中。
 
-你需要完成src/transaction/concurrency/lock_manager.cpp文件中的以下接口：
+你需要完成[src/transaction/concurrency/lock_manager.cpp](src/transaction/concurrency/lock_manager.cpp)文件中的以下接口：
 
 （1）行级锁加锁
 lock_shared_on_record(Transaction *, const Rid, int)：用于申请指定元组上的读锁。
