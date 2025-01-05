@@ -18,9 +18,9 @@ See the Mulan PSL v2 for more details. */
 class ProjectionExecutor : public AbstractExecutor {
    private:
     std::unique_ptr<AbstractExecutor> prev_;        // 投影节点的儿子节点
-    std::vector<ColMeta> cols_;                     // 需要投影的字段
+    std::vector<ColMeta> cols_;                     // 需要投影的字段 me:投影结束以后的colMeta串
     size_t len_;                                    // 字段总长度
-    std::vector<size_t> sel_idxs_;                  //存储选择列在原始表格中的位置。这个索引用于在投影操作中提取正确的列
+    std::vector<size_t> sel_idxs_;                  // me: 被选择的列在提取前的index（第几列）
 
    public:
     ProjectionExecutor(std::unique_ptr<AbstractExecutor> prev, const std::vector<TabCol> &sel_cols) {
@@ -29,49 +29,53 @@ class ProjectionExecutor : public AbstractExecutor {
         size_t curr_offset = 0;
         auto &prev_cols = prev_->cols();
         for (auto &sel_col : sel_cols) {
-            auto pos = get_col(prev_cols, sel_col); //根据列名或列描述符返回该列在 prev_cols 中的位置
-            sel_idxs_.push_back(pos - prev_cols.begin());   //设置sel_idxs_
+            auto pos = get_col(prev_cols, sel_col);
+            sel_idxs_.push_back(pos - prev_cols.begin());
             auto col = *pos;
             col.offset = curr_offset;
             curr_offset += col.len;
             cols_.push_back(col);
         }
         len_ = curr_offset;
-
-        // ATTENTION ------ -------- -------- ------- -------- ------ add Lock?
     }
 
-    //new add
-    bool is_end() const override { return prev_->is_end(); }
-    size_t tupleLen() const override { return len_; }
-    const std::vector<ColMeta> &cols() const override { return cols_; }
+    size_t tupleLen() const { return len_; };
 
     void beginTuple() override {
-        //Need to do
+        // 递归begin孩子
         prev_->beginTuple();
-    }
+    }       
 
     void nextTuple() override {
-        //Need to do
-        assert(!prev_->is_end());
+        // 目的：调用儿子节点的next
         prev_->nextTuple();
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        assert(!is_end());
-        auto &prev_cols = prev_->cols();
-        auto prev_rec = prev_->Next();
-        auto &proj_cols = cols_;
-        auto proj_rec = std::make_unique<RmRecord>(len_);   //创建一条新的记录 proj_rec，它的长度是投影后的长度
-        for (size_t proj_idx = 0; proj_idx < proj_cols.size(); proj_idx++) {
-            size_t prev_idx = sel_idxs_[proj_idx];
-            auto &prev_col = prev_cols[prev_idx];   //获取原始记录中与当前投影列对应的列元数据
-            auto &proj_col = proj_cols[proj_idx];   //获取当前投影列的列元数据
-            memcpy(proj_rec->data + proj_col.offset, prev_rec->data + prev_col.offset, prev_col.len);   //将原始记录中的列数据拷贝到投影结果记录中的正确位置
+        // 提取出对应列的数据，组装成一条新的记录，返回给上层
+        auto child_rec = prev_->Next();
+        auto ret_rec = std::make_unique<RmRecord>(len_);
+        int sel_num = sel_idxs_.size();
+        auto prev_cols = prev_->cols();
+
+        for(int i=0;i<sel_num;i++){
+            // 对于cols_里的每一列，需要找到它在child_rec里的offset、len，以及它未来在ret_rec里的offset，并使用memcpy进行复制
+            ColMeta prev_col = prev_cols[sel_idxs_[i]];
+            ColMeta cur_col = cols_[i];
+            char* prev_val = child_rec->data+prev_col.offset;
+            char* cur_val = ret_rec->data + cur_col.offset;
+            int len = prev_col.len;
+            memcpy(cur_val,prev_val,len);
         }
-        return proj_rec;
-        return nullptr;
+        return ret_rec;
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    const std::vector<ColMeta> &cols() const {
+        // std::vector<ColMeta> *_cols = nullptr;
+        return cols_;
+    };
+
+    bool is_end() const { return prev_->is_end(); };
 };

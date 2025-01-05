@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <random>  // for std::default_random_engine
-#include <iostream>
 
 #include "gtest/gtest.h"
 
@@ -252,8 +251,6 @@ class BPlusTreeTests : public ::testing::Test {
             check_tree(ih, node->value_at(i));  // 递归子树
         }
         buffer_pool_manager_->unpin_page(node->get_page_id(), false);
-
-        std::cout << "check_tree ok" << std::endl;
     }
 
     /**
@@ -305,6 +302,7 @@ class BPlusTreeTests : public ::testing::Test {
         ASSERT_EQ(scan.is_end(), true);
         ASSERT_EQ(it, mock.end());
     }
+
 };
 
 /**
@@ -324,7 +322,6 @@ TEST_F(BPlusTreeTests, InsertTest) {
     for (int64_t key = 1; key <= scale; key++) {
         keys.push_back(key);
     }
-    std::cout << "TEST_F small push_key ok" << std::endl;
 
     const char *index_key;
     for (auto key : keys) {
@@ -335,33 +332,19 @@ TEST_F(BPlusTreeTests, InsertTest) {
         bool insert_ret = ih_->insert_entry(index_key, rid, txn_.get());  // 调用Insert
         ASSERT_EQ(insert_ret, true);
 
-        //std::cout << "Drawing---" << std::endl;
         // Draw(buffer_pool_manager_.get(), "insert" + std::to_string(key) + ".dot");
     }
-    std::cout << "TEST_F small insert_key ok" << std::endl;
 
     std::vector<Rid> rids;
     for (auto key : keys) {
         rids.clear();
         index_key = (const char *)&key;
-        std::cout << "TEST_F small get_value" << std::endl;
         ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
-        EXPECT_EQ(rids.size(), 1);      //die here
-
-
-    // if (rids.size() > 0) {          //mytest
-    // int32_t value = key & 0xFFFFFFFF;
-    // EXPECT_EQ(rids[0].slot_no, value);
-    // } else {
-    // FAIL() << "Expected rids size to be 1, but it was 0.";
-    // }
-
-
+        EXPECT_EQ(rids.size(), 1);
 
         int32_t value = key & 0xFFFFFFFF;
         EXPECT_EQ(rids[0].slot_no, value);
     }
-    std::cout << "TEST_F small have_Value_check ok" << std::endl;
 
     // 找不到未插入的数据
     for (int key = scale + 1; key <= scale + 100; key++) {
@@ -370,9 +353,6 @@ TEST_F(BPlusTreeTests, InsertTest) {
         ih_->get_value(index_key, &rids, txn_.get());  // 调用GetValue
         EXPECT_EQ(rids.size(), 0);
     }
-    std::cout << "TEST_F small notHave_check ok" << std::endl;
-
-    std::cout << "TEST_F small ok" << std::endl;
 }
 
 /**
@@ -432,6 +412,4 @@ TEST_F(BPlusTreeTests, LargeScaleTest) {
         scan.next();
     }
     EXPECT_EQ(current_key, keys.size() + 1);
-
-    std::cout << "TEST_F large ok" << std::endl;
 }

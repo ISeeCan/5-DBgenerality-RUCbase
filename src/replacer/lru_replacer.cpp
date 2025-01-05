@@ -9,6 +9,7 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details. */
 
 #include "lru_replacer.h"
+#include <algorithm>
 
 LRUReplacer::LRUReplacer(size_t num_pages) { max_size_ = num_pages; }
 
@@ -24,27 +25,19 @@ bool LRUReplacer::victim(frame_id_t* frame_id) {
     // 它能够避免死锁发生，其构造函数能够自动进行上锁操作，析构函数会对互斥量进行解锁操作，保证线程安全。
     std::scoped_lock lock{latch_};  //  如果编译报错可以替换成其他lock
 
-    // TODO:
+    // Todo:
     //  利用lru_replacer中的LRUlist_,LRUHash_实现LRU策略
     //  选择合适的frame指定为淘汰页面,赋值给*frame_id
-     // 检查是否有页面可以被淘汰
-    if (LRUlist_.empty()) {
-        // 如果链表为空，没有页面可以淘汰，返回 false
-        // frame_id = nullptr;
+    if(LRUlist_.empty()){
+        frame_id = nullptr;
         return false;
     }
-
-    // 获取最久未使用的页面 ID（链表尾部的元素）
-    *frame_id = LRUlist_.back();
-
-    // 从链表中移除该页面
-    LRUlist_.pop_back();
-
-    // 同时从哈希表中移除该页面的记录
-    LRUhash_.erase(*frame_id);
-
-    // 返回 true，表示成功淘汰了一个页面
-    return true;
+    else{
+        *frame_id = LRUlist_.back();
+        LRUlist_.pop_back();
+        LRUhash_.erase(*frame_id);
+        return true;
+    }
 }
 
 /**
@@ -53,15 +46,14 @@ bool LRUReplacer::victim(frame_id_t* frame_id) {
  */
 void LRUReplacer::pin(frame_id_t frame_id) {
     std::scoped_lock lock{latch_};
-    // TODO:
+    // Todo:
     // 固定指定id的frame
     // 在数据结构中移除该frame
-    auto it = LRUhash_.find(frame_id);
-    if (it != LRUhash_.end()) {
-        LRUlist_.erase(it->second);
-        LRUhash_.erase(it);
+    if(std::find(LRUlist_.begin(), LRUlist_.end(), frame_id) != LRUlist_.end()){
+        LRUlist_.erase(LRUhash_[frame_id]);
+        LRUhash_.erase(frame_id);
     }
-
+    return;
 }
 
 /**
@@ -69,25 +61,22 @@ void LRUReplacer::pin(frame_id_t frame_id) {
  * @param {frame_id_t} frame_id 取消固定的frame的id
  */
 void LRUReplacer::unpin(frame_id_t frame_id) {
-    // TODO:
+    // Todo:
     //  支持并发锁
     //  选择一个frame取消固定
-    std::scoped_lock lock{latch_};
 
-    // 在 LRUhash_ 中查找 frame_id
-    auto it = LRUhash_.find(frame_id);
-    // 如果没有找到，说明该frame_id已经不在LRUlist_中，直接返回
-    if (it != LRUhash_.end()) {
-        return;  
+    // std::scoped_lock lock{latch_}; //悲观锁
+
+    if(std::find(LRUlist_.begin(), LRUlist_.end(), frame_id) == LRUlist_.end()){
+        // 如果该frame已经是unpin状态，就不需要再更新
+        std::list<frame_id_t>::iterator it;
+        {
+            std::unique_lock<std::mutex> lock(latch_);
+            it = LRUlist_.insert(LRUlist_.begin(), frame_id);
+            LRUhash_[frame_id] = it;
+        }
     }
-
-     // 如果 frame_id 被取消固定，则将其添加到 LRUlist_ 的首部
-    LRUlist_.push_front(frame_id); 
-
-
-    // 更新哈希表，指向新的位置
-    LRUhash_[frame_id] = LRUlist_.begin();  
-
+    return ;
 }
 
 /**

@@ -15,14 +15,14 @@ See the Mulan PSL v2 for more details. */
 #include "index/ix.h"
 #include "system/sm.h"
 
-class NestedLoopJoinExecutor : public AbstractExecutor {    //嵌套链接模块
+class NestedLoopJoinExecutor : public AbstractExecutor {
    private:
     std::unique_ptr<AbstractExecutor> left_;    // 左儿子节点（需要join的表）
     std::unique_ptr<AbstractExecutor> right_;   // 右儿子节点（需要join的表）
     size_t len_;                                // join后获得的每条记录的长度
     std::vector<ColMeta> cols_;                 // join后获得的记录的字段
 
-    std::vector<Condition> fed_conds_;          // join条件
+    std::vector<Condition> fed_conds_;          // join条件 
     bool isend;
 
    public:
@@ -37,117 +37,118 @@ class NestedLoopJoinExecutor : public AbstractExecutor {    //嵌套链接模块
             col.offset += left_->tupleLen();
         }
 
-        cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());    //将左表和右表的列合并成一个字段列表,右表在左表后
+        cols_.insert(cols_.end(), right_cols.begin(), right_cols.end());
         isend = false;
         fed_conds_ = std::move(conds);
 
-        // ATTENTION ------ -------- -------- ------- -------- ------ add Lock?
     }
 
-    //New Add
-    bool is_end() const override { return left_->is_end(); }    //检查左表是否已经遍历完（是否已经全部结束）
-    size_t tupleLen() const override { return len_; }   //返回连接后每条记录的长度（左表和右表记录长度的总和）
-    const std::vector<ColMeta> &cols() const override { return cols_; } //返回连接后的字段列表（包括左表和右表的所有列）
+    const std::vector<ColMeta> &cols() const {
+        // std::vector<ColMeta> *_cols = nullptr;
+        return cols_;
+    };
+
+    bool is_end() const { return isend; };
 
     void beginTuple() override {
-        //Need to do
         left_->beginTuple();
-        if (left_->is_end()) {
-            return;
-        }
         right_->beginTuple();
-        while (!is_end()) { //如果满足连接条件（eval_conds），则跳出循环。
-            if (eval_conds(cols_, fed_conds_, left_->Next().get(), right_->Next().get())) {
-                break;
-            }
-            right_->nextTuple();
-            if (right_->is_end()) {
-                left_->nextTuple();
-                right_->beginTuple();
-            }
-            //如果右表的记录遍历完，则开始遍历下一条左表记录，并重新从头开始遍历右表
-        }
     }
 
     void nextTuple() override {
-        //Need to do
-        //right_->nextTuple()：让右表移动到下一条记录。
-        //如果右表的记录已经遍历完，则移动到左表的下一条记录，并重新开始遍历右表。
-        assert(!is_end());
-        right_->nextTuple();
-        if (right_->is_end()) {
-            left_->nextTuple();
-            right_->beginTuple();
-        }
-        while (!is_end()) {
-            if (eval_conds(cols_, fed_conds_, left_->Next().get(), right_->Next().get())) {
+        // 需要一直往后找，直到符合条件的，或直到left和right都is_end
+        bool found_pair = false;
+        if(!right_->is_end())
+            right_->nextTuple();
+        while(!left_->is_end()){
+            auto left_rec = left_->Next();
+            while(!right_->is_end() && !found_pair){
+                auto right_rec = right_->Next();
+                // check conds
+                if(check_conds(left_rec.get(),right_rec.get())){
+                    found_pair = true;
+                    return;
+                }
+                right_->nextTuple();
+            }
+            if(found_pair){
                 break;
             }
-            right_->nextTuple();
-            if (right_->is_end()) {
-                left_->nextTuple();
-                right_->beginTuple();
-            }
+            right_->beginTuple();
+            left_->nextTuple();
         }
+        isend = true;
+        return;
     }
 
     std::unique_ptr<RmRecord> Next() override {
-        //Need to do
-        //递归连接到一块
-        assert(!is_end());
-        auto record = std::make_unique<RmRecord>(len_);
-        auto left_record = left_->Next();
-        auto right_record = right_->Next();
-        memcpy(record->data, left_record->data, left_record->size);
-        memcpy(record->data + left_record->size, right_record->data, right_record->size);
-        return record;
-        return nullptr;
-    }
-
-
-    bool eval_cond(const std::vector<ColMeta> &rec_cols, const Condition &cond, const RmRecord *lrec,
-                   const RmRecord *rrec) {
-        //NEW ADD
-        
-        auto lhs_col = get_col(rec_cols, cond.lhs_col); //获取左表条件的列元数据
-        char *lhs = lrec->data + lhs_col->offset;   //获得参与比较的左值
-        char *rhs;
-        ColType rhs_type;
-        if (cond.is_rhs_val) {  //是常量则直接获取常量值并设置它的类型
-            rhs_type = cond.rhs_val.type;
-            rhs = cond.rhs_val.raw->data;   //常量右值直接获得
-        } else {
-            // rhs is a column
-            auto rhs_col = get_col(rec_cols, cond.rhs_col);
-            rhs_type = rhs_col->type;       //右表的字段位置相对于整个连接结果的记录布局
-            rhs = rrec->data + rhs_col->offset - left_->tupleLen();
-        }
-        assert(rhs_type == lhs_col->type);  //确保左右列的类型一致
-        int cmp = ix_compare(lhs, rhs, rhs_type, lhs_col->len);
-        if (cond.op == OP_EQ) {
-            return cmp == 0;
-        } else if (cond.op == OP_NE) {
-            return cmp != 0;
-        } else if (cond.op == OP_LT) {
-            return cmp < 0;
-        } else if (cond.op == OP_GT) {
-            return cmp > 0;
-        } else if (cond.op == OP_LE) {
-            return cmp <= 0;
-        } else if (cond.op == OP_GE) {
-            return cmp >= 0;
-        } else {
-            throw InternalError("Unexpected op type");
-        }
-    }
-
-    bool eval_conds(const std::vector<ColMeta> &rec_cols, const std::vector<Condition> &conds, const RmRecord *lrec,
-                    const RmRecord *rrec) {
-        //NEW ADD
-        //将所有连接条件逐一应用于左表和右表的记录。如果所有条件都满足，返回 true，表示这对记录可以连接
-        return std::all_of(conds.begin(), conds.end(),
-                           [&](const Condition &cond) { return eval_cond(rec_cols, cond, lrec, rrec); });
+        // 处理连接操作TODO
+        // 这时候left和right的next已经符合条件，直接进行连接
+        // check is_end
+        assert(!isend);
+        // join
+        auto left_rec = left_->Next();
+        auto right_rec = right_->Next();
+        auto new_rec = std::make_unique<RmRecord>(len_);
+        memcpy(new_rec->data,left_rec->data,left_rec->size);
+        memcpy(new_rec->data+left_rec->size,right_rec->data,right_rec->size);
+        return new_rec;
     }
 
     Rid &rid() override { return _abstract_rid; }
+
+    bool check_conds(RmRecord* left_rec, RmRecord* right_rec){
+        int len = fed_conds_.size();
+        if(!len){
+            return true;
+        }
+        bool ret = check_cond(left_rec, right_rec, fed_conds_[0]);
+        for(int i=1;i<len;i++){
+            ret &= check_cond(left_rec,right_rec,fed_conds_[i]);
+            if(!ret){
+                return false;
+            }
+        }
+        return ret;
+    }
+
+    bool check_cond(RmRecord* left_rec, RmRecord* right_rec, Condition cond_){
+        // TODO: 没处理类型转换
+        auto left_col_it = left_->get_col(left_->cols(),cond_.lhs_col);
+        auto right_col_it = right_->get_col(right_->cols(),cond_.rhs_col);
+        char* left_val = left_rec->data + left_col_it->offset;
+        char* right_val = right_rec->data + right_col_it->offset;
+        assert(left_col_it->type == right_col_it->type);
+        int cmp = ix_compare(left_val,right_val,right_col_it->type,right_col_it->len);
+        bool found;
+        switch(cond_.op){
+            case OP_EQ:
+            {
+                found = (cmp==0);
+                break;
+            }
+            case OP_NE:
+            {
+                found = (cmp!=0);
+                break;
+            }
+            case OP_LT:{
+                found = (cmp==-1);
+                break;
+            }
+            case OP_GT:{
+                found = (cmp==1);
+                break;
+            }
+            case OP_LE:{
+                found = (cmp!=1);
+                break;
+            }
+            case OP_GE:{
+                found = (cmp!=-1);
+                break;
+            }
+        }
+        return found;
+    }
 };

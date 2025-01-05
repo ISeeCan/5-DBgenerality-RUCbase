@@ -27,32 +27,34 @@ class InsertExecutor : public AbstractExecutor {
    public:
     InsertExecutor(SmManager *sm_manager, const std::string &tab_name, std::vector<Value> values, Context *context) {
         sm_manager_ = sm_manager;
+        // 获取需要插入record的表
         tab_ = sm_manager_->db_.get_table(tab_name);
         values_ = values;
         tab_name_ = tab_name;
         if (values.size() != tab_.cols.size()) {
             throw InvalidValueCountError();
         }
+        // 获取需要插入record表的数据文件句柄（RmFileHandle）
         fh_ = sm_manager_->fhs_.at(tab_name).get();
         context_ = context;
     };
 
     std::unique_ptr<RmRecord> Next() override {
-        // Make record buffer
-        RmRecord rec(fh_->get_file_hdr().record_size);  //创建缓冲区
+        // 0. 构建待插入record对象
+        RmRecord rec(fh_->get_file_hdr().record_size);
         for (size_t i = 0; i < values_.size(); i++) {
             auto &col = tab_.cols[i];
             auto &val = values_[i];
-            if (col.type != val.type) { //检查数据类型是否一致
+            if (col.type != val.type) {
                 throw IncompatibleTypeError(coltype2str(col.type), coltype2str(val.type));
             }
-            val.init_raw(col.len);  //初始化 Value 对象，分配内存以存储数据
-            memcpy(rec.data + col.offset, val.raw->data, col.len);  //将每个值（val.raw->data）拷贝到记录缓冲区 rec.data 的相应位置
+            val.init_raw(col.len);
+            memcpy(rec.data + col.offset, val.raw->data, col.len);
         }
-        // Insert into record file
-        rid_ = fh_->insert_record(rec.data, context_);  //添加记录
+        // 1. 将record对象通过RmFileHandle插入到对应表的数据文件中
+        rid_ = fh_->insert_record(rec.data, context_);
         
-        // Insert into index
+        // 2. 如果表上存在索引，将record对象插入到相关索引文件中
         for(size_t i = 0; i < tab_.indexes.size(); ++i) {
             auto& index = tab_.indexes[i];
             auto ih = sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name_, index.cols)).get();
@@ -62,8 +64,13 @@ class InsertExecutor : public AbstractExecutor {
                 memcpy(key + offset, rec.data + index.cols[i].offset, index.cols[i].len);
                 offset += index.cols[i].len;
             }
-            ih->insert_entry(key, rid_, context_->txn_);    //插入数据到相应位置
+            ih->insert_entry(key, rid_, context_->txn_);
         }
+
+        // lab4: 记录插入操作（for transaction rollback）
+        WriteRecord* write_rec = new WriteRecord(WType::INSERT_TUPLE,tab_name_,rid_);
+        context_->txn_->append_write_record(write_rec);
+        // insert和delete操作不需要返回record对应指针，返回nullptr即可
         return nullptr;
     }
     Rid &rid() override { return rid_; }

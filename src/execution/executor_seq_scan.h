@@ -25,7 +25,7 @@ class SeqScanExecutor : public AbstractExecutor {
     size_t len_;                        // scan后生成的每条记录的长度
     std::vector<Condition> fed_conds_;  // 同conds_，两个字段相同
 
-    Rid rid_;
+    Rid rid_;                           // me:当前指向的
     std::unique_ptr<RecScan> scan_;     // table_iterator
 
     SmManager *sm_manager_;
@@ -43,12 +43,9 @@ class SeqScanExecutor : public AbstractExecutor {
         context_ = context;
 
         fed_conds_ = conds_;
-        // ATTENTION ------ -------- -------- ------- -------- ------ add Lock?
     }
 
-    //new add
-    size_t tupleLen() const override { return len_; }
-
+    size_t tupleLen() const { return len_; };
 
     /**
      * @brief 构建表迭代器scan_,并开始迭代扫描,直到扫描到第一个满足谓词条件的元组停止,并赋值给rid_
