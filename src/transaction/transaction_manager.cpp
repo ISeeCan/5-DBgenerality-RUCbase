@@ -13,7 +13,7 @@ See the Mulan PSL v2 for more details. */
 #include "record/rm_file_handle.h"
 #include "system/sm_manager.h"
 
-std::unordered_map<txn_id_t, Transaction *> TransactionManager::txn_map = {};
+std::unordered_map<txn_id_t, Transaction*> TransactionManager::txn_map = {};
 
 /**
  * @description: 事务的开始方法
@@ -21,19 +21,22 @@ std::unordered_map<txn_id_t, Transaction *> TransactionManager::txn_map = {};
  * @param {Transaction*} txn 事务指针，空指针代表需要创建新事务，否则开始已有事务
  * @param {LogManager*} log_manager 日志管理器指针
  */
-Transaction *TransactionManager::begin(Transaction *txn, LogManager *log_manager) {
+Transaction* TransactionManager::begin(Transaction* txn, LogManager* log_manager) {
     // Todo:
+    // 0. 给txn_map_上锁
+    std::scoped_lock lock{latch_};
     // 1. 判断传入事务参数是否为空指针
     // 2. 如果为空指针，创建新事务
-    // 3. 把开始事务加入到全局事务表中
-    // 4. 返回当前事务指针
-
-    std::scoped_lock lock(latch_);
-
-    if (txn == nullptr) {
-        txn = new Transaction(next_txn_id_++);
+    if (!txn) {
+        txn = new Transaction(next_txn_id_);
+        next_txn_id_++;
+        // TODO
+        // txn->set_txn_mode();
+        txn->set_start_ts(next_timestamp_);
     }
+    // 3. 把开始事务加入到全局事务表中
     txn_map[txn->get_transaction_id()] = txn;
+    // 4. 返回当前事务指针
     return txn;
 }
 
@@ -42,24 +45,32 @@ Transaction *TransactionManager::begin(Transaction *txn, LogManager *log_manager
  * @param {Transaction*} txn 需要提交的事务
  * @param {LogManager*} log_manager 日志管理器指针
  */
-void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
+void TransactionManager::commit(Transaction* txn, LogManager* log_manager) {
     // Todo:
+    // 0. 给txn_map_上锁
+    std::scoped_lock lock{latch_};
+    if (!txn) {
+        return;
+    }
     // 1. 如果存在未提交的写操作，提交所有的写操作
-    // 2. 释放所有锁
-    // 3. 释放事务相关资源，eg.锁集
-    // 4. 把事务日志刷入磁盘中
-    // 5. 更新事务状态
-
-    std::scoped_lock lock(latch_);
-
     auto write_set = txn->get_write_set();
-    write_set->clear();
+    while (!write_set->empty()) {
+        // TODO
+        write_set->pop_front();
+    }
+    // 2. 释放所有锁
     auto lock_set = txn->get_lock_set();
-    for (auto lock : *lock_set) {
-        lock_manager_->unlock(txn, lock);
+    if (!lock_set->empty()) {
+        for (auto it = lock_set->begin(); it != lock_set->end(); it++) {
+            lock_manager_->unlock(txn, *it);
+        }
     }
     lock_set->clear();
-
+    // 3. 释放事务相关资源， eg.锁集
+    // TODO
+    // 4. 把事务日志刷入磁盘中
+    log_manager->flush_log_to_disk();
+    // 5. 更新事务状态
     txn->set_state(TransactionState::COMMITTED);
 }
 
@@ -68,101 +79,46 @@ void TransactionManager::commit(Transaction *txn, LogManager *log_manager) {
  * @param {Transaction *} txn 需要回滚的事务
  * @param {LogManager} *log_manager 日志管理器指针
  */
-void TransactionManager::abort(Transaction *txn, LogManager *log_manager) {
-    // Todo:
-    // 1. 回滚所有写操作
-    // 2. 释放所有锁
-    // 3. 清空事务相关资源，eg.锁集
-    // 4. 把事务日志刷入磁盘中
-    // 5. 更新事务状态
-
-    std::scoped_lock lock(latch_);
-
-    auto write_set = txn->get_write_set();
-    Context *context = new Context(lock_manager_, log_manager, txn);
-    while (!write_set->empty()) {
-        auto &item = write_set->back();
-        WType type = item->GetWriteType();
-        if (type == WType::INSERT_TUPLE) {
-            auto &tab_name = item->GetTableName();
-            auto &rid = item->GetRid();
-            auto tab = sm_manager_->db_.get_table(tab_name);
-            auto rec = sm_manager_->fhs_.at(tab_name)->get_record(rid, context);
-            // Delete index
-            for (size_t i = 0; i < tab.indexes.size(); ++i) {
-                auto &index = tab.indexes[i];
-                auto ih =
-                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name, index.cols)).get();
-                char *key = new char[index.col_tot_len];
-                int offset = 0;
-                for (int j = 0; j < index.col_num; ++j) {
-                    memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
-                }
-                ih->delete_entry(key, context->txn_);
-            }
-            // Delete record file
-            sm_manager_->fhs_.at(tab_name).get()->delete_record(rid, context);
-        } else if (type == WType::DELETE_TUPLE) {
-            auto &tab_name = item->GetTableName();
-            auto &rec = item->GetRecord();
-            auto tab = sm_manager_->db_.get_table(tab_name);
-            // Insert into record file
-            auto rid = sm_manager_->fhs_.at(tab_name)->insert_record(rec.data, context);
-            // Insert into index
-            for (size_t i = 0; i < tab.indexes.size(); ++i) {
-                auto &index = tab.indexes[i];
-                auto ih =
-                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name, index.cols)).get();
-                char *key = new char[index.col_tot_len];
-                int offset = 0;
-                for (int j = 0; j < index.col_num; ++j) {
-                    memcpy(key + offset, rec.data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
-                }
-                ih->insert_entry(key, rid, context->txn_);
-            }
-        } else if (type == WType::UPDATE_TUPLE) {
-            auto &tab_name = item->GetTableName();
-            auto &rid = item->GetRid();
-            auto &record = item->GetRecord();
-            auto tab = sm_manager_->db_.get_table(tab_name);
-            auto rec = sm_manager_->fhs_.at(tab_name)->get_record(rid, context);
-            // Delete index
-            for (size_t i = 0; i < tab.indexes.size(); ++i) {
-                auto &index = tab.indexes[i];
-                auto ih =
-                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name, index.cols)).get();
-                char *key = new char[index.col_tot_len];
-                int offset = 0;
-                for (int j = 0; j < index.col_num; ++j) {
-                    memcpy(key + offset, rec->data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
-                }
-                ih->delete_entry(key, context->txn_);
-            }
-            // Insert into index
-            for (size_t i = 0; i < tab.indexes.size(); ++i) {
-                auto &index = tab.indexes[i];
-                auto ih =
-                    sm_manager_->ihs_.at(sm_manager_->get_ix_manager()->get_index_name(tab_name, index.cols)).get();
-                char *key = new char[index.col_tot_len];
-                int offset = 0;
-                for (int j = 0; j < index.col_num; ++j) {
-                    memcpy(key + offset, record.data + index.cols[j].offset, index.cols[j].len);
-                    offset += index.cols[j].len;
-                }
-                ih->insert_entry(key, rid, context->txn_);
-            }
-            sm_manager_->fhs_.at(tab_name)->update_record(rid, record.data, context);
-        }
-        write_set->pop_back();
+void TransactionManager::abort(Transaction* txn, LogManager* log_manager) {
+    // TODO 1.:
+    // 0. 给txn_map_上锁
+    std::scoped_lock lock{latch_};
+    if (!txn) {
+        return;
     }
-
+    // 1. 回滚所有写操作
+    // 获取写操作集合
+    auto write_set = txn->get_write_set();
+    auto* context = new Context(lock_manager_, log_manager, txn);
+    for (auto iter = write_set->rbegin(); iter != write_set->rend(); ++iter) {
+        auto& type = (*iter)->GetWriteType();
+        auto& rid = (*iter)->GetRid();
+        auto buf = (*iter)->GetRecord().data;
+        auto fh = sm_manager_->fhs_.at((*iter)->GetTableName()).get();
+        switch (type) {
+            case WType::INSERT_TUPLE:
+                fh->delete_record(rid, context);
+                break;
+            case WType::DELETE_TUPLE:
+                fh->insert_record(buf, context);
+                break;
+            case WType::UPDATE_TUPLE:
+                fh->update_record(rid, buf, context);
+                break;
+        }
+    }
+    write_set->clear();
+    delete context;
     auto lock_set = txn->get_lock_set();
-    for (auto lock : *lock_set) {
-        lock_manager_->unlock(txn, lock);
+    if (!lock_set->empty()) {
+        for (auto it = lock_set->begin(); it != lock_set->end(); it++) {
+            lock_manager_->unlock(txn, *it);
+        }
     }
     lock_set->clear();
+    // 3. 清空事务相关资源，eg.锁集
+    // 4. 把事务日志刷入磁盘中
+    log_manager->flush_log_to_disk();
+    // 5. 更新事务状态
     txn->set_state(TransactionState::ABORTED);
 }
