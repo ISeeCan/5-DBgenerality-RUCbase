@@ -21,13 +21,14 @@ std::unordered_map<txn_id_t, Transaction*> TransactionManager::txn_map = {};
  * @param {Transaction*} txn 事务指针，空指针代表需要创建新事务，否则开始已有事务
  * @param {LogManager*} log_manager 日志管理器指针
  */
+//                                            事务                     日志管理器
 Transaction* TransactionManager::begin(Transaction* txn, LogManager* log_manager) {
     // Todo:
     // 0. 给txn_map_上锁
     std::scoped_lock lock{latch_};
     // 1. 判断传入事务参数是否为空指针
     // 2. 如果为空指针，创建新事务
-    if (!txn) {
+    if (!txn) {     //启动已有事务
         txn = new Transaction(next_txn_id_);
         next_txn_id_++;
         // TODO
@@ -35,6 +36,7 @@ Transaction* TransactionManager::begin(Transaction* txn, LogManager* log_manager
         txn->set_start_ts(next_timestamp_);
     }
     // 3. 把开始事务加入到全局事务表中
+    //全局哈希表
     txn_map[txn->get_transaction_id()] = txn;
     // 4. 返回当前事务指针
     return txn;
@@ -95,7 +97,7 @@ void TransactionManager::abort(Transaction* txn, LogManager* log_manager) {
         auto& rid = (*iter)->GetRid();
         auto buf = (*iter)->GetRecord().data;
         auto fh = sm_manager_->fhs_.at((*iter)->GetTableName()).get();
-        switch (type) {
+        switch (type) {     //手动反向回滚
             case WType::INSERT_TUPLE:
                 fh->delete_record(rid, context);
                 break;

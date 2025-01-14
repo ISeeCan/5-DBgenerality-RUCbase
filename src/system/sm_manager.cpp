@@ -86,17 +86,17 @@ void SmManager::drop_db(const std::string& db_name) {
  */
 void SmManager::open_db(const std::string& db_name) {
     if (is_dir(db_name)) {
-        if (chdir(db_name.c_str()) < 0) {
+        if (chdir(db_name.c_str()) < 0) {   //更改目录到数据库文件
             throw UnixError();
         }
         std::ifstream ifs(DB_META_NAME);
-        ifs >> db_;
+        ifs >> db_;     //读取元数据
         ifs.close();
         for (auto& entry : db_.tabs_) {
             auto& tab = entry.second;
-            fhs_.emplace(tab.name, rm_manager_->open_file(tab.name));
+            fhs_.emplace(tab.name, rm_manager_->open_file(tab.name));   //打开数据库文件
             for (auto index : tab.indexes) {
-                ihs_.emplace(ix_manager_->get_index_name(tab.name, index.cols),
+                ihs_.emplace(ix_manager_->get_index_name(tab.name, index.cols), //打开索引
                              ix_manager_->open_index(tab.name, index.cols));
             }
             for (auto index : tab.indexes) {
