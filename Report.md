@@ -9,8 +9,14 @@
         - [任务1.1 磁盘存储管理器](#任务11-磁盘存储管理器)
         - [任务1.2 缓冲池替换策略](#任务12-缓冲池替换策略)
         - [任务1.3 缓冲池管理器](#任务13-缓冲池管理器)
+      - [任务二 记录管理器](#任务二-记录管理器)
+        - [任务2.1 记录操作](#任务21-记录操作)
+        - [任务2.2 记录迭代器](#任务22-记录迭代器)
   - [实验二](#实验二)
     - [实验目标](#实验目标)
+  - [实验三](#实验三)
+  - [实验四](#实验四)
+  - [附加实验](#附加实验)
 
 ## 前置
 
@@ -29,6 +35,10 @@
 - **BufferPoolManager** 是核心协调器，负责高效使用内存缓存。
 - **DiskManager** 提供页面的磁盘读写接口，所有持久化操作依赖于它。
 - **LRUReplacer** 提供替换策略，用于决定淘汰哪一页。
+
+<div style="text-align: center;">
+    <img src="imgs/1exp.png" alt="实验一结构说明" style="width: 500px; height: auto;" />
+</div>
 
 三者通过缓冲池（pages_）、页表（page_table_）和替换列表（free_list_）有机结合，共同实现数据库缓冲池的管理功能。
 
@@ -85,8 +95,88 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 
 **BufferPoolManager**是调用对**DiskManager**和**LRUReplacer**的顶层调用，实现了更加宏观的各种操作。注意上锁。
 
+#### 任务二 记录管理器
+
+##### 任务2.1 记录操作
+
+需要实现[RmFileHandle](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/record/rm_file_handle.cpp)
+
+| Func                   | Todo         | Explaination                                    |
+| ---------------------- | ------------ | ----------------------------------------------- |
+| get_record             | 获取特定记录 | 获取page handle，并生成指向他的指针             |
+| insert_record          | 插入记录     | 可以通过指定位置向表内插入记录                  |
+| delete_record          | 删除记录     | 删除特定记录，并更新需要更新的元数据            |
+| update_record          | 更新记录     | 修改特定位置记录                                |
+| fetch_page_handle      | 获取页面     | 根据页面位置获取页面，并封装为page_handle并返回 |
+| create_new_page_handle | 创建新页面   | 创建新页面并初始化相关元数据                    |
+| create_page_handle     | 创建页面     | 优先返回空闲页面，均占用后创建新页面            |
+| release_page_handle    | 刷新元数据   | 如果出现了空闲页面，则刷新相关数据              |
+
+##### 任务2.2 记录迭代器
+
+要求补全[RmScan](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/record/rm_scan.cpp)
+
+| Func         | Todo     | Explaination                                             |
+| ------------ | -------- | -------------------------------------------------------- |
+| file_handle_ | 构造函数 | 利用RmFileHandle初始化相关元数据                         |
+| next         | 遍历     | 使用 `rid_.page_no` 遍历，并且通过位图找到下一个有效的 |
+| is_end       | 判断结尾 | 辅助函数，判断是否已经遍历到了结尾                       |
+| rid          | 获取rid_ | 辅助函数，获取私有参数                                   |
+
+<div style="text-align: center;">
+    <img src="imgs/pass1-1.png" alt="通过实验一测试" style="width: 500px; height: auto;" />
+</div>
+
 ## 实验二
 
 ### 实验目标
 
 [详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab2%5B%E7%B4%A2%E5%BC%95%E7%AE%A1%E7%90%86%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
+
+<div style="text-align: center;">
+    <img src="imgs/bTree.png" alt="b＋树" style="width: 250px; height: auto;" />
+</div>
+
+需要实现[ix_index_handle](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/index/ix_index_handle.cpp)，实际上本实验主要是进行b+树相关操作与维护
+
+- IxNodeHandle 节点维护
+
+| Funcs           | Todo | Explaination |
+| --------------- | ---- | ------------ |
+| lower_bound     |      |              |
+| upper_bound     |      |              |
+| leaf_lookup     |      |              |
+| internal_lookup |      |              |
+| insert_pairs    |      |              |
+| insert          |      |              |
+| erase_pair      |      |              |
+| remove          |      |              |
+
+- IxIndexHandle b+树维护
+
+| col1                     | col2 | col3 |
+| ------------------------ | ---- | ---- |
+| find_leaf_page           |      |      |
+| get_value                |      |      |
+| split                    |      |      |
+| insert_into_parent       |      |      |
+| insert_entry             |      |      |
+| delete_entry             |      |      |
+| coalesce_or_redistribute |      |      |
+| adjust_root              |      |      |
+| redistribute             |      |      |
+| coalesce                 |      |      |
+
+## 实验三
+
+[具体指导](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab3%5B%E6%9F%A5%E8%AF%A2%E6%89%A7%E8%A1%8C%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
+
+[详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab3%5B%E6%9F%A5%E8%AF%A2%E6%89%A7%E8%A1%8C%E5%AE%9E%E9%AA%8C%E6%8C%87%E5%AF%BC%5D.md)
+
+## 实验四
+
+[详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab4%5B%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
+
+## 附加实验
+
+[详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab4%5B%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
