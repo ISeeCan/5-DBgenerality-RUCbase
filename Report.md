@@ -200,6 +200,10 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 
 本实验要求实现各数据库算子
 
+<div style="text-align: center;">
+    <img src="imgs/3exp.png" alt="3说明" style="width: 400px; height: auto;" />
+</div>
+
 ### 任务一：元数据管理和DDL语句
 
 需要完成[sm_manager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/system/sm_manager.cpp)
@@ -222,25 +226,35 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 
 - 实现[delete](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_delete.h)
 
-
+删除相关文件及索引
 
 - 实现[insert](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_insert.h)
 
+创建缓冲区暂存数据，分别添加至文件及索引
 
+- 实现[projection](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_projection.h)
 
-- 实现[sort](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/execution_sort.h)
-
-
+创建缓冲区，拷贝相应位置数据，即为索引
 
 - 实现[nestedloop_join](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_nestedloop_join.h)
 
-
+先检验确保左右表变量类型一致，使用双层嵌套循环，逐个遍历左表的每行记录，与每个右表信息链接
 
 - 实现[seq_scan](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_seq_scan.h)
 
-
+迭代扫描比较，直到遇到一个符合条件的后返回
 
 - 实现[update](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_update.h)
+
+搜索相关数据位置，直接替换为新值
+
+<div style="text-align: center;">
+    <img src="imgs/pass3-1.png" alt="通过3-1测试" style="width: 400px; height: auto;" />
+</div>
+
+<div style="text-align: center;">
+    <img src="imgs/pass3-2.png" alt="通过3-2测试" style="width: 400px; height: auto;" />
+</div>
 
 ## 实验四
 
