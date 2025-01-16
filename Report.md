@@ -19,6 +19,8 @@
     - [任务一：元数据管理和DDL语句](#任务一元数据管理和ddl语句)
     - [任务二：DML语句实现](#任务二dml语句实现)
   - [实验四](#实验四)
+    - [任务一 事务管理器实验](#任务一-事务管理器实验)
+    - [任务二 并发控制实验](#任务二-并发控制实验)
   - [附加实验](#附加实验)
 
 ## 前置
@@ -259,6 +261,30 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 ## 实验四
 
 [详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab4%5B%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
+
+**注意，实验四及Bonus代码位于分支Lab4**。
+
+### 任务一 事务管理器实验
+
+需要完成[transaction](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/transaction/transaction_manager.cpp)
+
+| Func   | Todo     | Explaination                                         |
+| ------ | -------- | ---------------------------------------------------- |
+| begin  | 事务开始 | 创建新事务，添加至全局哈希表                         |
+| commit | 事务提交 | 提交所有操作，释放锁，更新日志                       |
+| abort  | 事务回滚 | 根据事务操作执行完全相反的动作，最后释放锁，回滚日志 |
+
+### 任务二 并发控制实验
+
+需要完成[lock_manager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/transaction/concurrency/lock_manager.cpp)
+
+<div style="text-align: center;">
+    <img src="imgs/pass4-1.png" alt="通过4-1测试" style="width: 400px; height: auto;" />
+</div>
+
+<div style="text-align: center;">
+    <img src="imgs/pass4-2.png" alt="通过4-2测试" style="width: 400px; height: auto;" />
+</div>
 
 ## 附加实验
 
