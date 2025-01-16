@@ -80,14 +80,11 @@ void LRUReplacer::unpin(frame_id_t frame_id) {
     if (it != LRUhash_.end()) {
         return;  
     }
-
      // 如果 frame_id 被取消固定，则将其添加到 LRUlist_ 的首部
     LRUlist_.push_front(frame_id); 
 
-
     // 更新哈希表，指向新的位置
     LRUhash_[frame_id] = LRUlist_.begin();  
-
 }
 
 /**

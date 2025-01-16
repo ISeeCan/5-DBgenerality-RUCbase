@@ -51,8 +51,6 @@ void BufferPoolManager::update_page(Page *page, PageId new_page_id, frame_id_t n
 
     page->reset_memory(); //reset data
     page->id_ = new_page_id; //update
-
-
 }
 
 /**
