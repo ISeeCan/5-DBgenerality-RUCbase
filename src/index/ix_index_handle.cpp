@@ -432,9 +432,6 @@ bool IxIndexHandle::delete_entry(const char *key, Transaction *transaction) {
 		buffer_pool_manager_->unpin_page(leaf->get_page_id(), true);
 		return true;
 	}
-    
-
-
 
     // 4. 如果需要并发，并且需要删除叶子结点，则需要在事务的delete_page_set中添加删除结点的对应页面；记得处理并发的上锁
 }
@@ -493,8 +490,6 @@ bool IxIndexHandle::coalesce_or_redistribute(IxNodeHandle *node, Transaction *tr
     buffer_pool_manager_->unpin_page(parent->get_page_id(), true);
     buffer_pool_manager_->unpin_page(brother->get_page_id(), true);
     return true;
-
-
 
 }
 

@@ -13,8 +13,11 @@
         - [任务2.1 记录操作](#任务21-记录操作)
         - [任务2.2 记录迭代器](#任务22-记录迭代器)
   - [实验二](#实验二)
-    - [实验目标](#实验目标)
+    - [实验说明](#实验说明-1)
+    - [具体实现](#具体实现)
   - [实验三](#实验三)
+    - [任务一：元数据管理和DDL语句](#任务一元数据管理和ddl语句)
+    - [任务二：DML语句实现](#任务二dml语句实现)
   - [实验四](#实验四)
   - [附加实验](#附加实验)
 
@@ -44,7 +47,9 @@
 
 ##### 任务1.1 磁盘存储管理器
 
-需要完成[DiskManager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/storage/disk_manager.cpp)
+需要完成[DiskManager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/storage/disk_manager.cpp)，最基本的rid结构是表示记录的唯一标识符：
+
+格式：{page_no, slot_no}，指向记录所在的页面编号及槽位编号。
 
 |     Func     |      Todo      | Explaination                                                           |
 | :-----------: | :------------: | :--------------------------------------------------------------------- |
@@ -124,12 +129,16 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 | rid          | 获取rid_ | 辅助函数，获取私有参数                                   |
 
 <div style="text-align: center;">
-    <img src="imgs/pass1-1.png" alt="通过实验一测试" style="width: 500px; height: auto;" />
+    <img src="imgs/pass1-1.png" alt="通过1-1测试" style="width: 400px; height: auto;" />
+</div>
+
+<div style="text-align: center;">
+    <img src="imgs/pass1-2.png" alt="通过1-2测试" style="width: 400px; height: auto;" />
 </div>
 
 ## 实验二
 
-### 实验目标
+### 实验说明
 
 [详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab2%5B%E7%B4%A2%E5%BC%95%E7%AE%A1%E7%90%86%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
 
@@ -137,41 +146,79 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
     <img src="imgs/bTree.png" alt="b＋树" style="width: 250px; height: auto;" />
 </div>
 
+<div style="text-align: center;">
+    <img src="imgs/2exp.png" alt="实验二说明" style="width: 500px; height: auto;" />
+</div>
+
 需要实现[ix_index_handle](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/index/ix_index_handle.cpp)，实际上本实验主要是进行b+树相关操作与维护
+
+### 具体实现
 
 - IxNodeHandle 节点维护
 
-| Funcs           | Todo | Explaination |
-| --------------- | ---- | ------------ |
-| lower_bound     |      |              |
-| upper_bound     |      |              |
-| leaf_lookup     |      |              |
-| internal_lookup |      |              |
-| insert_pairs    |      |              |
-| insert          |      |              |
-| erase_pair      |      |              |
-| remove          |      |              |
+| Func            | Todo                                | Explaination                              |
+| --------------- | ----------------------------------- | ----------------------------------------- |
+| lower_bound     | 查找节点中第一个大于等于target的key | 在此使用二分查找进行实现                  |
+| upper_bound     | 查找节点中第一个小于等于target的key | 在此使用二分查找进行实现                  |
+| leaf_lookup     | 查找目标key                         | 先使用lowerbound获取位置然后判断是否存在  |
+| internal_lookup | 获取目标key物理位置                 | 查找key所在叶子节点位置，然后返回页面位置 |
+| insert_pairs    | 在指定位置插入n个连续的键值对       | 分别获取n个连续key,rid值，插入到pos       |
+| insert          | 插入一个键值对                      | 先查找位置，然后插入                      |
+| erase_pair      | 删除键值对                          | 分别删除key,rid, 然后更新数量             |
+| remove          | 删除目标key                         | 先查找位置，然后删除                      |
 
 - IxIndexHandle b+树维护
 
-| col1                     | col2 | col3 |
-| ------------------------ | ---- | ---- |
-| find_leaf_page           |      |      |
-| get_value                |      |      |
-| split                    |      |      |
-| insert_into_parent       |      |      |
-| insert_entry             |      |      |
-| delete_entry             |      |      |
-| coalesce_or_redistribute |      |      |
-| adjust_root              |      |      |
-| redistribute             |      |      |
-| coalesce                 |      |      |
+| Func                     | Todo         | Explaination                                       |
+| ------------------------ | ------------ | -------------------------------------------------- |
+| find_leaf_page           | 查找叶子节点 | 从根节点一路向下查找，最终返回叶子                 |
+| get_value                | 查找key位置  | 先查找到叶子节点，然后于页内寻找，返回是否存在     |
+| split                    | 节点拆分     | 超过节点上限，拆分右半部分为子节点，调整指针与计数 |
+| insert_into_parent       | 插入到父节点 | 分裂过程中不断向父节点插入，直到结束甚至调整根     |
+| insert_entry             | 插入节点     | 先寻找插入到哪个叶子，然后判断分裂与操作           |
+| delete_entry             | 删除节点     | 先寻找到叶子节点并删除，然后判断合并与操作         |
+| coalesce_or_redistribute | 操作逻辑判断 | 根据操作后节点结构与计数进行调整或b+树结构改变     |
+| adjust_root              | 调整根节点   | 主要针对根的删除，选择新根或标记无效               |
+| redistribute             | 重分配       | 根据b+树逻辑，当前节点与邻居关系进行内容重分配     |
+| coalesce                 | 合并         | 如果重分配无法解决问题，则进行（级联的）合并       |
+
+具体逻辑可以参考[相关网站](https://www.cs.usfca.edu/~galles/visualization/BPlusTree.html)示例
+
+<div style="text-align: center;">
+    <img src="imgs/pass2-1.png" alt="通过2-1测试" style="width: 400px; height: auto;" />
+</div>
+
+<div style="text-align: center;">
+    <img src="imgs/pass2-2.png" alt="通过2-2测试" style="width: 400px; height: auto;" />
+</div>
 
 ## 实验三
 
 [具体指导](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab3%5B%E6%9F%A5%E8%AF%A2%E6%89%A7%E8%A1%8C%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
 
 [详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab3%5B%E6%9F%A5%E8%AF%A2%E6%89%A7%E8%A1%8C%E5%AE%9E%E9%AA%8C%E6%8C%87%E5%AF%BC%5D.md)
+
+本实验要求实现各数据库算子
+
+### 任务一：元数据管理和DDL语句
+
+需要完成[sm_manager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/system/sm_manager.cpp)
+
+| Func         | Todo       | Explaination                                      |
+| ------------ | ---------- | ------------------------------------------------- |
+| create_db    | 创建数据库 | 创立路径，初始化元数据                            |
+| drop_db      | 删除数据库 | 删除相关数据库文件                                |
+| open_db      | 打开数据库 | 加载元数据与文件                                  |
+| flush_meta   | 刷入磁盘   | 刷入磁盘                                          |
+| close_db     | 关闭数据库 | 调用rm_manager,ix_manager分别关闭文件，索引       |
+| show_tables  | 输出表     | 分割，输出表信息至output.txt                      |
+| desc_table   | 输出元数据 | 调用**RecordPrinter**输出元数据             |
+| create_table | 创建表     | 初始偏移为0，打开文件初始化元数据                 |
+| drop_table   | 删除表     | 删除表相关文件                                    |
+| create_index | 创建索引   | 调用ix_manager_创建索引，调用RmFileHandle写入记录 |
+| drop_index   | 删除索引   | 删除索引相关文件                                  |
+
+### 任务二：DML语句实现
 
 ## 实验四
 
