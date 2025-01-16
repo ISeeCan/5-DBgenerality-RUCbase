@@ -116,8 +116,6 @@ void DiskManager::create_file(const std::string &path) {
     } else {
         throw FileExistsError(path);
     }
-    
-
 }
 
 /**
@@ -245,7 +243,7 @@ int DiskManager::read_log(char *log_data, int size, int offset) {
     int file_size = get_file_size(LOG_FILE_NAME);
     if (offset > file_size) {
         return -1;
-    }
+    }   //打开日志，获得大小再读
 
     size = std::min(size, file_size - offset);
     if(size == 0) return 0;
@@ -264,7 +262,7 @@ int DiskManager::read_log(char *log_data, int size, int offset) {
 void DiskManager::write_log(char *log_data, int size) {
     if (log_fd_ == -1) {
         log_fd_ = open_file(LOG_FILE_NAME);
-    }
+    }   //打开日志写
 
     // write from the file_end
     lseek(log_fd_, 0, SEEK_END);
