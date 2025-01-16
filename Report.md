@@ -220,6 +220,28 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 
 ### 任务二：DML语句实现
 
+- 实现[delete](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_delete.h)
+
+
+
+- 实现[insert](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_insert.h)
+
+
+
+- 实现[sort](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/execution_sort.h)
+
+
+
+- 实现[nestedloop_join](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_nestedloop_join.h)
+
+
+
+- 实现[seq_scan](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_seq_scan.h)
+
+
+
+- 实现[update](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/execution/executor_update.h)
+
 ## 实验四
 
 [详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab4%5B%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
