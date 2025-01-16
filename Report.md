@@ -193,11 +193,11 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 具体逻辑可以参考[相关网站](https://www.cs.usfca.edu/~galles/visualization/BPlusTree.html)示例
 
 <div style="text-align: center;">
-    <img src="imgs/pass2-1.png" alt="通过2-1测试" style="width: 400px; height: auto;" />
+    <img src="imgs/pass2-2.png" alt="通过2-1测试" style="width: 400px; height: auto;" />
 </div>
 
 <div style="text-align: center;">
-    <img src="imgs/pass2-2.png" alt="通过2-2测试" style="width: 400px; height: auto;" />
+    <img src="imgs/pass2-3.png" alt="通过2-2测试" style="width: 400px; height: auto;" />
 </div>
 
 ## 实验三
