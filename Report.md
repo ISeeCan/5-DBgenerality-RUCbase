@@ -22,10 +22,16 @@
     - [任务一 事务管理器实验](#任务一-事务管理器实验)
     - [任务二 并发控制实验](#任务二-并发控制实验)
   - [附加实验](#附加实验)
+    - [任务1: 事务的提交与回滚](#任务1-事务的提交与回滚)
+    - [任务2：幻读数据异常](#任务2幻读数据异常)
 
 ## 前置
 
 具体项目安装配置见个人仓库[README](https://github.com/ISeeCan/5-DBgenerality-RUCbase)，官方项目仓库见[链接](https://github.com/ISeeCan/5-DBgenerality-RUCbase)
+
+*代码可见提交压缩包附带的src文件，也可以访问(github链接)[https://github.com/ISeeCan/5-DBgenerality-RUCbase]（目前是只有助教有权限）*
+
+**感谢老师和助教们这一学期的帮助与指导！**
 
 ## 实验一
 
@@ -262,11 +268,15 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 
 [详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab4%5B%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
 
+<div style="text-align: center;">
+    <img src="imgs/4exp.png" alt="4说明" style="width: 400px; height: auto;" />
+</div>
+
 **注意，实验四及Bonus代码位于分支Lab4**。
 
 ### 任务一 事务管理器实验
 
-需要完成[transaction](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/transaction/transaction_manager.cpp)
+需要完成[transaction_manager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/transaction/transaction_manager.cpp)
 
 | Func   | Todo     | Explaination                                         |
 | ------ | -------- | ---------------------------------------------------- |
@@ -276,7 +286,16 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 
 ### 任务二 并发控制实验
 
-需要完成[lock_manager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/src/transaction/concurrency/lock_manager.cpp)
+需要完成[lock_manager](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/Lab4/src/transaction/concurrency/lock_manager.cpp)
+
+| Func                     | Todo       | Explaination                        |
+| ------------------------ | ---------- | ----------------------------------- |
+| lock_shared_on_record    | 行级共享锁 | 检测是否在2PL扩张，若无排他锁：加锁 |
+| lock_exclusive_on_record | 行级排他锁 | 检测是否在2PL扩张，若无任何锁：加锁 |
+| lock_shared_on_table     | 表级共享锁 | 检测全局record，若无排他锁：加锁    |
+| lock_exclusive_on_table  | 表级排他锁 | 检测全局record，若无任何锁：加锁    |
+
+此外，还需要对实验1，2，3的文件，记录，索引在使用时进行加锁处理，读取加共享锁，写入加排他锁，具体实现已在代码中给出
 
 <div style="text-align: center;">
     <img src="imgs/pass4-1.png" alt="通过4-1测试" style="width: 400px; height: auto;" />
@@ -289,3 +308,39 @@ Replacer类使用双向链表std::list维护页面的访问顺序，其链表头
 ## 附加实验
 
 [详细说明](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/main/docs/Rucbase-Lab4%5B%E5%B9%B6%E5%8F%91%E6%8E%A7%E5%88%B6%E5%AE%9E%E9%AA%8C%E6%96%87%E6%A1%A3%5D.md)
+
+### 任务1: 事务的提交与回滚
+
+需要完成[index_scan](https://github.com/ISeeCan/5-DBgenerality-RUCbase/blob/Lab4/src/execution/executor_index_scan.h)
+
+先保证变量类型一致，然后获取需要比较的左右值，迭代进行比较，满足条件则返回。
+
+<div style="text-align: center;">
+    <img src="imgs/passBonus-1.png" alt="通过4-1测试" style="width: 400px; height: auto;" />
+</div>
+
+### 任务2：幻读数据异常
+
+幻读指的是在一个事务中，多次执行相同的查询语句时，查询结果不一致，本质是新增或删除的记录导致查询结果变化。比如：
+
+- 事务A查询某范围的记录；
+- 事务B在此范围内插入或删除了数据；
+- 事务A再次查询时，发现多了或少了记录，即为幻读。
+
+为此，需要避免在读事务未彻底结束时进行数据修改。
+
+具体来说，可以结合表锁和间隙锁实现：
+
+**表锁**：对整个表加锁，防止其他事务在查询期间插入或删除记录。实现简单但是降低并发性能。
+
+**间隙锁**：在索引范围内加锁，防止其他事务在锁定范围内插入新记录。粒度更细，性能更优，但是实现复杂。特别的，索引扫描确定了加锁范围，我们需要确保条件查询选择索引扫描算子，同时在扫描时配合间隙锁保证查询结果稳定且无幻读。
+
+具体实现较为复杂，详见Lab4分支最新代码
+
+<div style="text-align: center;">
+    <img src="imgs/passBonus-2.png" alt="通过4-1测试" style="width: 400px; height: auto;" />
+</div>
+
+*代码可见提交压缩包附带的src文件，也可以访问(github链接)[https://github.com/ISeeCan/5-DBgenerality-RUCbase]（目前是只有助教有权限）*
+
+**感谢老师和助教们这一学期的帮助与指导！**
